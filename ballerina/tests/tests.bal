@@ -618,3 +618,33 @@ function testShowInvoiceDetails() returns error? {
     test:assertNotEquals(response.amount?.value, (), msg = "Invoice should have an amount");
     test:assertTrue(true, msg = "Invoice details retrieved successfully");
 }
+
+// -----------------------------------Test case to delete an invoice ------------------------------------
+@test:Config {
+    groups: ["paypal", "invoice"],
+    dependsOn: [testCreateDraftInvoice]
+}
+function testDeleteInvoice() returns error? {
+    if testInvoiceId.length() == 0 {
+        io:println("⚠️ Skipping delete invoice test - no invoice ID available");
+        return;
+    }
+
+    map<string|string[]> headers = {
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": "delete-invoice-" + testInvoiceId
+    };
+
+    error? result = paypalClient->/invoices/[testInvoiceId].delete(headers);
+
+    if result is error {
+        io:println("❌ Failed to delete invoice: ", result.message());
+        if result is http:ClientError {
+            io:println("🔍 Error details: ", result.detail().toString());
+        }
+        test:assertFalse(true, msg = "Invoice deletion failed: " + result.message());
+    } else {
+        io:println("✅ Invoice deleted successfully: ", testInvoiceId);
+        test:assertTrue(true, msg = "Invoice deleted successfully");
+    }
+}
