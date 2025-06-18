@@ -579,3 +579,42 @@ function testGenerateQrCodeForInvoice() returns error? {
         test:assertTrue(true, msg = "QR code generation successful");
     }
 }
+
+// -----------------------------------Test case to show invoice details ------------------------------------
+@test:Config {
+    groups: ["paypal", "invoice"],
+    dependsOn: [testCreateDraftInvoice]
+}
+function testShowInvoiceDetails() returns error? {
+    if testInvoiceId.length() == 0 {
+        io:println("⚠️ Skipping show invoice test - no invoice ID available");
+        return;
+    }
+
+    map<string|string[]> headers = {
+        "Content-Type": "application/json"
+    };
+
+    Invoice|error response = paypalClient->/invoices/[testInvoiceId].get(headers);
+
+    if response is error {
+        io:println("❌ Failed to retrieve invoice details: ", response.message());
+        
+        if response is http:ClientError {
+            io:println("🔍 Error details: ", response.detail().toString());
+        }
+
+        test:assertFalse(true, msg = "Invoice retrieval failed: " + response.message());
+        return response;
+    }
+
+    // Validate some key invoice fields
+    io:println("✅ Retrieved invoice: ", response.id);
+    io:println("🧾 Status: ", response.status);
+    io:println("💵 Amount: ", response.amount?.currencyCode, " ", response.amount?.value);
+
+    test:assertEquals(response.id, testInvoiceId, msg = "Invoice ID should match");
+    test:assertNotEquals(response.status, (), msg = "Invoice should have a status");
+    test:assertNotEquals(response.amount?.value, (), msg = "Invoice should have an amount");
+    test:assertTrue(true, msg = "Invoice details retrieved successfully");
+}
