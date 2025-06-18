@@ -544,3 +544,38 @@ function testDeleteExternalPayment() returns error? {
         testPaymentId = "";
     }
 }
+
+// -----------------------------------Test case to generate QR code for an invoice ------------------------------------
+@test:Config {
+    groups: ["paypal", "invoice"],
+    dependsOn: [testCreateDraftInvoice]
+}
+function testGenerateQrCodeForInvoice() returns error? {
+    if testInvoiceId.length() == 0 {
+        io:println("⚠️ Skipping QR code test - no invoice ID available");
+        return;
+    }
+
+    QrConfig config = {
+        width: 300,
+        height: 300,
+        action: "pay" // or "details"
+    };
+
+    map<string|string[]> headers = {
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": "generate-qr-" + testInvoiceId
+    };
+
+    // Generate QR code
+    error? result = paypalClient->/invoices/[testInvoiceId]/generate\-qr\-code.post(config, headers);
+
+    if result is error {
+        io:println("❌ Failed to generate QR code: ", result.message());
+        test:assertFalse(true, msg = "QR code generation failed");
+        return result;
+    } else {
+        io:println("✅ QR code generated successfully for invoice: ", testInvoiceId);
+        test:assertTrue(true, msg = "QR code generation successful");
+    }
+}
