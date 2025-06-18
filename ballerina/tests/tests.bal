@@ -1,6 +1,7 @@
 import ballerina/io;
 import ballerina/test;
 import ballerina/http;
+import ballerina/lang.runtime;
 
 configurable string PAYPAL_CLIENT_ID = ?;
 configurable string PAYPAL_CLIENT_SECRET = ?;
@@ -375,7 +376,7 @@ function testSendInvoiceReminder() returns error? {
 //-------------------------------------------Test case to cancel sent invoice---------------------------------------------
 @test:Config {
     groups: ["paypal", "invoice"],
-    dependsOn: [testSendInvoiceReminder]
+    dependsOn: [testDeleteExternalPayment]
 }
 function testCancelSentInvoice() returns error? {
     if testInvoiceId.length() == 0 {
@@ -422,6 +423,25 @@ function testCancelSentInvoice() returns error? {
     }
 }
 
+//------------------------------------ Helper function to wait for SENT state ------------------------------------
+function waitForInvoiceToBeSent(string invoiceId, map<string|string[]> headers) returns boolean|error {
+    int maxRetries = 5;
+    int delayMs = 2000; // 2 seconds
+
+    foreach int i in 0...maxRetries {
+        boolean|error isSent = isInvoiceSent(invoiceId, headers);
+        if isSent is error {
+            return isSent;
+        } else if isSent {
+            return true;
+        } else {
+            io:println("⏳ Invoice not in SENT state yet. Retrying in ", delayMs, "ms...");
+            runtime:sleep(<decimal>delayMs / 1000.0);
+        }
+    }
+
+    return false; // after retries, still not sent
+}
 
 //------------------------------------ Test case to record payment for invoice ------------------------------------
 @test:Config {
@@ -439,13 +459,13 @@ function testRecordPaymentForInvoice() returns error? {
         "PayPal-Request-Id": "test-payment-" + testInvoiceId
     };
 
-    // Check if invoice is in SENT status before recording payment
-    boolean|error isSent = isInvoiceSent(testInvoiceId, headers);
+    // Wait for invoice to reach SENT state
+    boolean|error isSent = waitForInvoiceToBeSent(testInvoiceId, headers);
     if isSent is error {
         io:println("❌ Could not verify invoice status: ", isSent.message());
         return isSent;
     } else if !isSent {
-        io:println("⚠️ Invoice is not in SENT state. Cannot record payment.");
+        io:println("⚠️ Invoice did not reach SENT state in time. Skipping payment recording.");
         return;
     }
 
@@ -466,11 +486,11 @@ function testRecordPaymentForInvoice() returns error? {
 
     if result is error {
         io:println("❌ Failed to record payment for invoice: ", result.message());
-        
+
         if result is http:ClientError {
             io:println("🔍 Error details: ", result.detail().toString());
         }
-        
+
         test:assertFalse(true, msg = "Failed to record payment for invoice: " + result.message());
     } else if result is PaymentReference {
         io:println("✅ Payment recorded successfully for invoice ID: ", testInvoiceId);
@@ -480,5 +500,47 @@ function testRecordPaymentForInvoice() returns error? {
         }
         test:assertTrue(true, msg = "Payment recorded successfully");
         test:assertNotEquals(result.paymentId, (), msg = "Payment reference should have an ID");
+    }
+}
+
+//------------------------------------ Test case to delete external payment ------------------------------------
+@test:Config {
+    groups: ["paypal", "invoice"],
+    dependsOn: [testRecordPaymentForInvoice]
+}
+function testDeleteExternalPayment() returns error? {
+    if testInvoiceId.length() == 0 {
+        io:println("⚠️ Skipping delete payment test - no invoice ID available");
+        return;
+    }
+
+    if testPaymentId.length() == 0 {
+        io:println("⚠️ Skipping delete payment test - no payment ID available");
+        return;
+    }
+
+    map<string|string[]> headers = {
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": "delete-payment-" + testInvoiceId + "-" + testPaymentId
+    };
+
+    // Delete the external payment
+    error? result = paypalClient->/invoices/[testInvoiceId]/payments/[testPaymentId].delete(headers);
+
+    if result is error {
+        io:println("❌ Failed to delete external payment: ", result.message());
+
+        if result is http:ClientError {
+            io:println("🔍 Error details: ", result.detail().toString());
+        }
+
+        test:assertFalse(true, msg = "Failed to delete external payment: " + result.message());
+    } else {
+        io:println("✅ External payment deleted successfully");
+        io:println("🗑️ Deleted payment ID: ", testPaymentId, " from invoice: ", testInvoiceId);
+        test:assertTrue(true, msg = "External payment deleted successfully");
+
+        // Clear the payment ID since it's been deleted
+        testPaymentId = "";
     }
 }
