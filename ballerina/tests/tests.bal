@@ -1,7 +1,7 @@
-import ballerina/io;
-import ballerina/test;
 import ballerina/http;
+import ballerina/io;
 import ballerina/lang.runtime;
+import ballerina/test;
 
 configurable string PAYPAL_CLIENT_ID = ?;
 configurable string PAYPAL_CLIENT_SECRET = ?;
@@ -9,7 +9,7 @@ configurable string PAYPAL_API_BASE_URL = ?;
 configurable string PAYPAL_MERCHANT_EMAIL = ?;
 configurable boolean isLiveServer = ?;
 
-configurable string serviceUrl = isLiveServer ? "https://api-m.sandbox.paypal.com/v2/invoicing" : "http://localhost:9090"; // Base URL for the PayPal service, e.g., "https://api-m.sandbox.paypal.com"
+configurable string serviceUrl = isLiveServer ? "https://api-m.sandbox.paypal.com" : "http://localhost:9090"; // Base URL for the PayPal service, e.g., "https://api-m.sandbox.paypal.com"
 
 // Initialize the PayPal client for sandbox
 ConnectionConfig config = {
@@ -30,20 +30,14 @@ string testPaymentId = "";
 @test:Config {
     groups: ["paypal", "invoice"]
 }
-
 function testGenerateNextInvoiceNumber() returns error? {
     map<string|string[]> headers = {"Content-Type": "application/json"};
-    InvoiceNumber|error result = paypalClient->/generate\-next\-invoice\-number.post(headers);
 
-    test:assertFalse(result is error, msg = "Failed to generate next invoice number");
+    invoice_number result = check paypalClient->/v2/invoicing/generate\-next\-invoice\-number.post(headers);
 
-    if result is InvoiceNumber {
-        io:println("Generated Invoice Number: ", result);
-        test:assertNotEquals(result.invoiceNumber, "", msg = "Invoice number should not be empty");
-
-        // Save for next test
-        generatedInvoiceNumber = result.invoiceNumber ?: "";
-    }
+    io:println("Generated Invoice Number: ", result);
+    test:assertNotEquals(result.invoice_number, "", msg = "Invoice number should not be empty");
+    generatedInvoiceNumber = result.invoice_number ?: "";
 }
 
 // Test case to create a draft invoice
@@ -51,38 +45,36 @@ function testGenerateNextInvoiceNumber() returns error? {
     groups: ["paypal", "invoice"]
 }
 function testCreateDraftInvoice() returns error? {
-    // Prepare headers
     map<string|string[]> headers = {
         "Content-Type": "application/json",
-       "Prefer": "return=representation"
+        "Prefer": "return=representation"
     };
 
-    // Prepare a minimal valid invoice payload
-    Invoice invoicePayload = {
+    // Minimal valid invoice payload
+    invoice invoicePayload = {
         detail: {
             invoice_number: generatedInvoiceNumber,
             reference: "PO-123456",
             invoice_date: "2025-06-17",
             currency_code: "USD",
             note: "Thanks for your business!",
-           "term": "Net 30",
             memo: "Test invoice memo",
-            "paymentTerm": {
-                termType: "NET_30"
+            payment_term: {
+                term_type: "NET_30"
             }
         },
         invoicer: {
             name: {
-                givenName: "Dharshan",
+                given_name: "Dharshan",
                 surname: "Doe"
             },
             email_address: PAYPAL_MERCHANT_EMAIL
         },
-        primaryRecipients: [
+        primary_recipients: [
             {
-                billingInfo: {
+                billing_info: {
                     name: {
-                        givenName: "Ravindran",
+                        given_name: "Ravindran",
                         surname: "Smith"
                     },
                     email_address: "customer@example.com"
@@ -93,78 +85,65 @@ function testCreateDraftInvoice() returns error? {
             {
                 name: "Item 1",
                 quantity: "2",
-                unitAmount: {
-                    currencyCode: "USD",
+                unit_amount: {
+                    currency_code: "USD",
                     value: "25.00"
                 }
             }
         ]
     };
 
-    // Call the resource function to create the invoice
-    Invoice|error result = paypalClient->/invoices.post(invoicePayload, headers);
-    // Assert that the result is not an error
-    test:assertFalse(result is error, msg = "Failed to create invoice");
+    // Use `check` to simplify error handling
+    invoice result = check paypalClient->/v2/invoicing/invoices.post(invoicePayload, headers);
 
-    // Optionally verify some key fields in the result
-    if result is error {
-        io:println("❌ Invoice creation failed with error: ", result.message());
-        return result;
-    } else if result is Invoice {
-        // Save the invoice ID for use in dependent tests
-        testInvoiceId = result.id ?: "";
-    }
+    io:println("✅ Invoice Created: ID = ", result.id);
+    test:assertNotEquals(result.id, "", msg = "Invoice ID should not be empty");
+
+    // Save for other test cases
+    testInvoiceId = result.id ?: "";
 }
 
-// Test case to list invoices
+// ---------------------------------------------Test case to list invoices---------------------------------------------
 @test:Config {
     groups: ["paypal", "invoice"]
 }
 function testListInvoices() returns error? {
-    // Prepare headers
     map<string|string[]> headers = {
         "Content-Type": "application/json"
     };
 
-    // Query parameters
     InvoicesListQueries queries = {
         page: 1,
-        pageSize: 5,
+        page_size: 5,
         fields: "all",
-        totalRequired: true
+        total_required: true
     };
 
-    // Call the connector function
-    Invoices|error result = paypalClient->/invoices.get(headers, queries);
+    invoices result = check paypalClient->/v2/invoicing/invoices.get(headers, queries);
 
-    // Assert the result is not an error
-    test:assertFalse(result is error, msg = "Failed to list invoices");
-
-    if result is Invoices {
-        // Use member access for totalCount
-        anydata totalCount = result["totalCount"];
-        if totalCount is int {
-            io:println("✅ Total Invoices: ", totalCount.toString());
-            test:assertTrue(totalCount >= 0, msg = "Total count should be non-negative");
+    // Get total_count safely
+    int totalCount = 0;
+    if result.hasKey("total_count") {
+        anydata count = result["total_count"];
+        if count is int {
+            totalCount = count;
         }
+    }
+    io:println("✅ Total Invoices: ", totalCount.toString());
+    test:assertTrue(totalCount >= 0, msg = "Total count should be non-negative");
 
-        // Safely access items
-        Invoice[]? items = result.items;
-        if items is Invoice[] {
-            int itemsLength = items.length();
-            if itemsLength > 0 {
-                io:println("🧾 First Invoice ID: ", items[0].id);
-                test:assertTrue(items[0].id is string, msg = "Invoice should have an ID");
-            } else {
-                io:println("📭 No invoices found.");
-            }
-        } else {
-            io:println("📭 No invoice items in response.");
-        }
+    // Get items or fallback to empty array
+    invoice[] items = result.items ?: [];
+
+    if items.length() > 0 {
+        io:println("🧾 First Invoice ID: ", items[0].id ?: "N/A");
+        test:assertTrue(items[0].id is string, msg = "Invoice should have an ID");
+    } else {
+        io:println("📭 No invoices found.");
     }
 }
 
-// Test case to get an invoice by ID
+// ---------------------------------------------Test case to get invoice by ID---------------------------------------------
 @test:Config {
     groups: ["paypal", "invoice"],
     dependsOn: [testCreateDraftInvoice]
@@ -179,18 +158,13 @@ function testGetInvoiceById() returns error? {
         "Content-Type": "application/json"
     };
 
-    Invoice|error result = paypalClient->/invoices/[testInvoiceId].get(headers);
+    invoice result = check paypalClient->/v2/invoicing/invoices/[testInvoiceId].get(headers);
 
-    test:assertFalse(result is error, msg = "Failed to get invoice by ID");
-
-    if result is Invoice {
-        io:println("✅ Retrieved invoice: ", result.id);
-        test:assertEquals(result.id, testInvoiceId, msg = "Retrieved invoice ID should match requested ID");
-    }
+    io:println("✅ Retrieved invoice: ", result.id);
+    test:assertEquals(result.id, testInvoiceId, msg = "Retrieved invoice ID should match requested ID");
 }
 
 
-// Test case to list invoices with different queries
 @test:Config {
     groups: ["paypal", "invoice"]
 }
@@ -199,27 +173,22 @@ function testListInvoicesWithDifferentQueries() returns error? {
         "Content-Type": "application/json"
     };
 
-    // Test with minimal queries
+    // Fix: field name should be page_size not pageSize
     InvoicesListQueries queries = {
         page: 1,
-        pageSize: 2
+        page_size: 2
     };
 
-    Invoices|error result = paypalClient->/invoices.get(headers, queries);
+    invoices result = check paypalClient->/v2/invoicing/invoices.get(headers, queries);
 
-    test:assertFalse(result is error, msg = "Failed to list invoices with minimal queries");
-
-    if result is Invoices {
-        Invoice[]? items = result.items;
-        if items is Invoice[] {
-            int itemsLength = items.length();
-            test:assertTrue(itemsLength <= 2, msg = "Should return at most 2 invoices as per pageSize");
-            io:println("✅ Retrieved ", itemsLength.toString(), " invoices with minimal queries");
-        }
+    invoice[]? items = result.items;
+    if items is invoice[] {
+        int itemsLength = items.length();
+        test:assertTrue(itemsLength <= 2, msg = "Should return at most 2 invoices as per page_size");
+        io:println("✅ Retrieved ", itemsLength.toString(), " invoices with minimal queries");
     }
 }
 
-// Test case to handle errors in listing invoices
 @test:Config {
     groups: ["paypal", "invoice"]
 }
@@ -228,16 +197,14 @@ function testListInvoicesErrorHandling() returns error? {
         "Content-Type": "application/json"
     };
 
-    // Test with invalid page number
+    // Fix: use correct field names (snake_case)
     InvoicesListQueries invalidQueries = {
         page: -1,
-        pageSize: 5
+        page_size: 5
     };
 
-    Invoices|error result = paypalClient->/invoices.get(headers, invalidQueries);
+    invoices|error result = paypalClient->/v2/invoicing/invoices.get(headers, invalidQueries);
 
-    // This might succeed or fail depending on PayPal's validation
-    // Just ensure we handle both cases properly
     if result is error {
         io:println("⚠️ Expected error for invalid page number: ", result.message());
     } else {
@@ -247,17 +214,8 @@ function testListInvoicesErrorHandling() returns error? {
 
 // Helper function to check if an invoice is in DRAFT status
 function isInvoiceDraft(string invoiceId, map<string|string[]> headers) returns boolean|error {
-    Invoice|error result = paypalClient->/invoices/[invoiceId].get(headers);
-    if result is error {
-        return result;
-    }
-    if result is Invoice {
-        // Assuming the status field exists and is a string
-        if result.status is string {
-            return result.status == "DRAFT";
-        }
-    }
-    return false;
+    invoice result = check paypalClient->/v2/invoicing/invoices/[invoiceId].get(headers);
+    return result.status == "DRAFT";
 }
 
 // ---------------------------------------------Test case to send an invoice---------------------------------------------
@@ -276,37 +234,34 @@ function testSendInvoice() returns error? {
         "Prefer": "return=representation"
     };
 
-    boolean|error isDraft = isInvoiceDraft(testInvoiceId, headers);
-    if isDraft is error {
-        io:println("❌ Could not verify invoice status: ", isDraft.message());
-        return isDraft;
-    } else if !isDraft {
+    boolean isDraft = check isInvoiceDraft(testInvoiceId, headers);
+    if !isDraft {
         io:println("⚠️ Invoice is not in DRAFT state. Cannot send.");
         return;
     }
 
-    Notification payload = {
+    notification payload = {
         subject: "Invoice for your recent purchase",
         note: "Please see the attached invoice.",
-        sendToInvoicer: true,
-        sendToRecipient: true,
-        additionalRecipients: []
+        send_to_invoicer: true,
+        send_to_recipient: true,
+        additional_recipients: []
     };
 
-    LinkDescription|'202Response|error result = paypalClient->/invoices/[testInvoiceId]/send.post(payload, headers);
+    var result = paypalClient->/v2/invoicing/invoices/[testInvoiceId]/send.post(payload, headers);
 
-    if result is error {
+    if result is link_description {
+        io:println("✅ Invoice sent. HREF: ", result.href);
+    } else if result is '202\-response {
+        io:println("✅ Invoice accepted for future delivery (202).");
+    } else if result is error {
         io:println("❌ Failed to send invoice: ", result.message());
-
         if result is http:ClientError {
             io:println("🔍 Error details: ", result.detail().toString());
         }
-
         test:assertFalse(true, msg = "Failed to send invoice: " + result.message());
-    } else if result is LinkDescription {
-        io:println("✅ Invoice sent. HREF: ", result.href);
-    } else if result is '202Response {
-        io:println("✅ Invoice accepted for future delivery (202).");
+    } else {
+        io:println("⚠️ Unexpected response type.");
     }
 }
 
@@ -314,19 +269,10 @@ function testSendInvoice() returns error? {
 
 // Helper function to check if an invoice is in SENT status
 function isInvoiceSent(string invoiceId, map<string|string[]> headers) returns boolean|error {
-    Invoice|error result = paypalClient->/invoices/[invoiceId].get(headers);
-    if result is error {
-        return result;
-    }
-    if result is Invoice {
-        if result.status is string {
-            return result.status == "SENT";
-        }
-    }
-    return false;
+    invoice result = check paypalClient->/v2/invoicing/invoices/[invoiceId].get(headers);
+    return result.status == "SENT";
 }
 
-// Test case to send invoice reminder
 @test:Config {
     groups: ["paypal", "invoice"],
     dependsOn: [testSendInvoice]
@@ -341,39 +287,33 @@ function testSendInvoiceReminder() returns error? {
         "Content-Type": "application/json"
     };
 
-    // Check if invoice is in SENT status before sending reminder
-    boolean|error isSent = isInvoiceSent(testInvoiceId, headers);
-    if isSent is error {
-        io:println("❌ Could not verify invoice status: ", isSent.message());
-        return isSent;
-    } else if !isSent {
+    // Check if invoice is SENT
+    boolean isSent = check isInvoiceSent(testInvoiceId, headers);
+    if !isSent {
         io:println("⚠️ Invoice is not in SENT state. Cannot send reminder.");
         return;
     }
 
-    // Prepare notification payload for reminder
-    Notification reminderPayload = {
+    notification reminderPayload = {
         subject: "Reminder: Payment Due for Invoice",
         note: "This is a friendly reminder that your payment is due. Please process payment at your earliest convenience.",
-        sendToInvoicer: true,
-        sendToRecipient: true
+        send_to_invoicer: true,
+        send_to_recipient: true
     };
 
-    // Send the reminder
-    error? result = paypalClient->/invoices/[testInvoiceId]/remind.post(reminderPayload, headers);
+    error? result = paypalClient->/v2/invoicing/invoices/[testInvoiceId]/remind.post(reminderPayload, headers);
 
     if result is error {
         io:println("❌ Failed to send invoice reminder: ", result.message());
-        
         if result is http:ClientError {
             io:println("🔍 Error details: ", result.detail().toString());
         }
-        
         test:assertFalse(true, msg = "Failed to send invoice reminder: " + result.message());
-    } else {
-        io:println("✅ Invoice reminder sent successfully for invoice ID: ", testInvoiceId);
-        test:assertTrue(true, msg = "Invoice reminder sent successfully");
+        return result;
     }
+
+    io:println("✅ Invoice reminder sent successfully for invoice ID: ", testInvoiceId);
+    test:assertTrue(true, msg = "Invoice reminder sent successfully");
 }
 
 //-------------------------------------------Test case to cancel sent invoice---------------------------------------------
@@ -392,37 +332,77 @@ function testCancelSentInvoice() returns error? {
     };
 
     // Check if invoice is in SENT status before canceling
-    boolean|error isSent = isInvoiceSent(testInvoiceId, headers);
-    if isSent is error {
-        io:println("❌ Could not verify invoice status: ", isSent.message());
-        return isSent;
-    } else if !isSent {
+    boolean isSent = check isInvoiceSent(testInvoiceId, headers);
+    if !isSent {
         io:println("⚠️ Invoice is not in SENT state. Cannot cancel.");
         return;
     }
 
     // Prepare notification payload for cancellation
-    Notification cancelPayload = {
+    notification cancelPayload = {
         subject: "Invoice Cancellation Notice",
         note: "This invoice has been cancelled. Please disregard any previous payment requests for this invoice.",
-        sendToInvoicer: true,
-        sendToRecipient: true
+        send_to_invoicer: false,
+        send_to_recipient: true
     };
 
     // Cancel the invoice
-    error? result = paypalClient->/invoices/[testInvoiceId]/cancel.post(cancelPayload, headers);
+    error? result = paypalClient->/v2/invoicing/invoices/[testInvoiceId]/cancel.post(cancelPayload, headers);
 
     if result is error {
         io:println("❌ Failed to cancel invoice: ", result.message());
-        
+
         if result is http:ClientError {
             io:println("🔍 Error details: ", result.detail().toString());
         }
-        
+
         test:assertFalse(true, msg = "Failed to cancel invoice: " + result.message());
+        return result;
+    }
+
+    io:println("✅ Invoice cancelled successfully for invoice ID: ", testInvoiceId);
+    test:assertTrue(true, msg = "Invoice cancelled successfully");
+}
+
+//------------------------------------ Test case to delete external payment ------------------------------------
+@test:Config {
+    groups: ["paypal", "invoice"],
+    dependsOn: [testRecordPaymentForInvoice]
+}
+function testDeleteExternalPayment() returns error? {
+    if testInvoiceId.length() == 0 {
+        io:println("⚠️ Skipping delete payment test - no invoice ID available");
+        return;
+    }
+
+    if testPaymentId.length() == 0 {
+        io:println("⚠️ Skipping delete payment test - no payment ID available");
+        return;
+    }
+
+    map<string|string[]> headers = {
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": "delete-payment-" + testInvoiceId + "-" + testPaymentId
+    };
+
+    // Delete the external payment
+    error? result = paypalClient->/v2/invoicing/invoices/[testInvoiceId]/payments/[testPaymentId].delete(headers);
+
+    if result is error {
+        io:println("❌ Failed to delete external payment: ", result.message());
+
+        if result is http:ClientError {
+            io:println("🔍 Error details: ", result.detail().toString());
+        }
+
+        test:assertFalse(true, msg = "Failed to delete external payment: " + result.message());
     } else {
-        io:println("✅ Invoice cancelled successfully for invoice ID: ", testInvoiceId);
-        test:assertTrue(true, msg = "Invoice cancelled successfully");
+        io:println("✅ External payment deleted successfully");
+        io:println("🗑️ Deleted payment ID: ", testPaymentId, " from invoice: ", testInvoiceId);
+        test:assertTrue(true, msg = "External payment deleted successfully");
+
+        // Clear the payment ID since it's been deleted
+        testPaymentId = "";
     }
 }
 
@@ -431,7 +411,7 @@ function waitForInvoiceToBeSent(string invoiceId, map<string|string[]> headers) 
     int maxRetries = 5;
     int delayMs = 2000; // 2 seconds
 
-    foreach int i in 0...maxRetries {
+    foreach int i in 0 ... maxRetries {
         boolean|error isSent = isInvoiceSent(invoiceId, headers);
         if isSent is error {
             return isSent;
@@ -463,164 +443,64 @@ function testRecordPaymentForInvoice() returns error? {
     };
 
     // Wait for invoice to reach SENT state
-    boolean|error isSent = waitForInvoiceToBeSent(testInvoiceId, headers);
-    if isSent is error {
-        io:println("❌ Could not verify invoice status: ", isSent.message());
-        return isSent;
-    } else if !isSent {
+    boolean isSent = check waitForInvoiceToBeSent(testInvoiceId, headers);
+    if !isSent {
         io:println("⚠️ Invoice did not reach SENT state in time. Skipping payment recording.");
         return;
     }
 
     // Prepare payment detail payload
-    PaymentDetail paymentPayload = {
+    payment_detail paymentPayload = {
         method: "CASH",
         'type: "EXTERNAL",
         amount: {
-            currencyCode: "USD",
+            currency_code: "USD",
             value: "50.00"
         },
-        paymentDate: "2025-06-18",
+        payment_date: "2025-06-18",
         note: "Payment received via cash - Test payment recording"
     };
 
     // Record the payment
-    PaymentReference|error result = paypalClient->/invoices/[testInvoiceId]/payments.post(paymentPayload, headers);
+    payment_reference result = check paypalClient->/v2/invoicing/invoices/[testInvoiceId]/payments.post(paymentPayload, headers);
 
-    if result is error {
-        io:println("❌ Failed to record payment for invoice: ", result.message());
-
-        if result is http:ClientError {
-            io:println("🔍 Error details: ", result.detail().toString());
-        }
-
-        test:assertFalse(true, msg = "Failed to record payment for invoice: " + result.message());
-    } else if result is PaymentReference {
-        io:println("✅ Payment recorded successfully for invoice ID: ", testInvoiceId);
-        if result.paymentId is string {
-            io:println("💰 Payment Reference ID: ", result.paymentId);
-            testPaymentId = result.paymentId ?: ""; // Save the payment ID for deletion test
-        }
-        test:assertTrue(true, msg = "Payment recorded successfully");
-        test:assertNotEquals(result.paymentId, (), msg = "Payment reference should have an ID");
+    io:println("✅ Payment recorded successfully for invoice ID: ", testInvoiceId);
+    if result.payment_id is string {
+        io:println("💰 Payment Reference ID: ", result.payment_id);
+        testPaymentId = result.payment_id ?: "";
     }
+
+    test:assertTrue(true, msg = "Payment recorded successfully");
+    test:assertNotEquals(result.payment_id, (), msg = "Payment reference should have an ID");
 }
 
-//------------------------------------ Test case to delete external payment ------------------------------------
+//-----------------------------------Test case to show invoice details ------------------------------------
 @test:Config {
     groups: ["paypal", "invoice"],
-    dependsOn: [testRecordPaymentForInvoice]
+    dependsOn: [testCreateDraftInvoice]
 }
-function testDeleteExternalPayment() returns error? {
+function testShowInvoiceDetails() returns error? {
     if testInvoiceId.length() == 0 {
-        io:println("⚠️ Skipping delete payment test - no invoice ID available");
-        return;
-    }
-
-    if testPaymentId.length() == 0 {
-        io:println("⚠️ Skipping delete payment test - no payment ID available");
+        io:println("⚠️ Skipping show invoice test - no invoice ID available");
         return;
     }
 
     map<string|string[]> headers = {
-        "Content-Type": "application/json",
-        "PayPal-Request-Id": "delete-payment-" + testInvoiceId + "-" + testPaymentId
+        "Content-Type": "application/json"
     };
 
-    // Delete the external payment
-    error? result = paypalClient->/invoices/[testInvoiceId]/payments/[testPaymentId].delete(headers);
+    invoice response = check paypalClient->/v2/invoicing/invoices/[testInvoiceId].get(headers);
 
-    if result is error {
-        io:println("❌ Failed to delete external payment: ", result.message());
+    // Validate some key invoice fields
+    io:println("✅ Retrieved invoice: ", response.id);
+    io:println("🧾 Status: ", response.status);
+    io:println("💵 Amount: ", response.amount?.currency_code, " ", response.amount?.value);
 
-        if result is http:ClientError {
-            io:println("🔍 Error details: ", result.detail().toString());
-        }
-
-        test:assertFalse(true, msg = "Failed to delete external payment: " + result.message());
-    } else {
-        io:println("✅ External payment deleted successfully");
-        io:println("🗑️ Deleted payment ID: ", testPaymentId, " from invoice: ", testInvoiceId);
-        test:assertTrue(true, msg = "External payment deleted successfully");
-
-        // Clear the payment ID since it's been deleted
-        testPaymentId = "";
-    }
+    test:assertEquals(response.id, testInvoiceId, msg = "Invoice ID should match");
+    test:assertNotEquals(response.status, (), msg = "Invoice should have a status");
+    test:assertNotEquals(response.amount?.value, (), msg = "Invoice should have an amount");
+    test:assertTrue(true, msg = "Invoice details retrieved successfully");
 }
-
-// -----------------------------------Test case to generate QR code for an invoice ------------------------------------
-// @test:Config {
-//     groups: ["paypal", "invoice"],
-//     dependsOn: [testCreateDraftInvoice]
-// }
-// function testGenerateQrCodeForInvoice() returns error? {
-//     if testInvoiceId.length() == 0 {
-//         io:println("⚠️ Skipping QR code test - no invoice ID available");
-//         return;
-//     }
-
-//     QrConfig config = {
-//         width: 300,
-//         height: 300,
-//         action: "pay" // or "details"
-//     };
-
-//     map<string|string[]> headers = {
-//         "Content-Type": "application/json",
-//         "PayPal-Request-Id": "generate-qr-" + testInvoiceId
-//     };
-
-//     // Generate QR code
-//     error? result = paypalClient->/invoices/[testInvoiceId]/generate\-qr\-code.post(config, headers);
-
-//     if result is error {
-//         io:println("❌ Failed to generate QR code: ", result.message());
-//         test:assertFalse(true, msg = "QR code generation failed");
-//         return result;
-//     } else {
-//         io:println("✅ QR code generated successfully for invoice: ", testInvoiceId);
-//         test:assertTrue(true, msg = "QR code generation successful");
-//     }
-// }
-
-// -----------------------------------Test case to show invoice details ------------------------------------
-// @test:Config {
-//     groups: ["paypal", "invoice"],
-//     dependsOn: [testCreateDraftInvoice]
-// }
-// function testShowInvoiceDetails() returns error? {
-//     if testInvoiceId.length() == 0 {
-//         io:println("⚠️ Skipping show invoice test - no invoice ID available");
-//         return;
-//     }
-
-//     map<string|string[]> headers = {
-//         "Content-Type": "application/json"
-//     };
-
-//     Invoice|error response = paypalClient->/invoices/[testInvoiceId].get(headers);
-
-//     if response is error {
-//         io:println("❌ Failed to retrieve invoice details: ", response.message());
-        
-//         if response is http:ClientError {
-//             io:println("🔍 Error details: ", response.detail().toString());
-//         }
-
-//         test:assertFalse(true, msg = "Invoice retrieval failed: " + response.message());
-//         return response;
-//     }
-
-//     // Validate some key invoice fields
-//     io:println("✅ Retrieved invoice: ", response.id);
-//     io:println("🧾 Status: ", response.status);
-//     io:println("💵 Amount: ", response.amount?.currencyCode, " ", response.amount?.value);
-
-//     test:assertEquals(response.id, testInvoiceId, msg = "Invoice ID should match");
-//     test:assertNotEquals(response.status, (), msg = "Invoice should have a status");
-//     test:assertNotEquals(response.amount?.value, (), msg = "Invoice should have an amount");
-//     test:assertTrue(true, msg = "Invoice details retrieved successfully");
-// }
 
 // -----------------------------------Test case to delete an invoice ------------------------------------
 @test:Config {
@@ -638,16 +518,44 @@ function testDeleteInvoice() returns error? {
         "PayPal-Request-Id": "delete-invoice-" + testInvoiceId
     };
 
-    error? result = paypalClient->/invoices/[testInvoiceId].delete(headers);
+    // Attempt to delete the invoice
+    check paypalClient->/v2/invoicing/invoices/[testInvoiceId].delete(headers);
 
-    if result is error {
-        io:println("❌ Failed to delete invoice: ", result.message());
-        if result is http:ClientError {
-            io:println("🔍 Error details: ", result.detail().toString());
-        }
-        test:assertFalse(true, msg = "Invoice deletion failed: " + result.message());
-    } else {
-        io:println("✅ Invoice deleted successfully: ", testInvoiceId);
-        test:assertTrue(true, msg = "Invoice deleted successfully");
-    }
+    io:println("✅ Invoice deleted successfully: ", testInvoiceId);
+    test:assertTrue(true, msg = "Invoice deleted successfully");
 }
+
+// // -----------------------------------Test case to generate QR code for an invoice ------------------------------------
+// @test:Config {
+//     groups: ["invoice", "mock"],
+//     dependsOn: [testCreateDraftInvoice]
+// }
+// function testGenerateQrCodeForInvoice() returns error? {
+//     if testInvoiceId.length() == 0 {
+//         io:println("⚠️ Skipping QR code test - no invoice ID available");
+//         return;
+//     }
+
+//     qr_config config = {
+//         width: 300,
+//         height: 300,
+//         action: "pay" // or "details"
+//     };
+
+//     map<string|string[]> headers = {
+//         "Content-Type": "application/json",
+//         "PayPal-Request-Id": "generate-qr-" + testInvoiceId
+//     };
+
+//     // Generate QR code
+//     error? result = paypalClient->/v2/invoicing/invoices/[testInvoiceId]/generate\-qr\-code.post(config, headers);
+
+//     if result is error {
+//         io:println("❌ Failed to generate QR code: ", result.message());
+//         test:assertFalse(true, msg = "QR code generation failed");
+//         return result;
+//     } else {
+//         io:println("✅ QR code generated successfully for invoice: ", testInvoiceId);
+//         test:assertTrue(true, msg = "QR code generation successful");
+//     }
+// }
