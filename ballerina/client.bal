@@ -12,7 +12,7 @@ public isolated client class Client {
     # + config - The configurations to be used when initializing the `connector` 
     # + serviceUrl - URL of the target service 
     # + return - An error if connector initialization failed 
-    public isolated function init(ConnectionConfig config, string serviceUrl = "https://api-m.sandbox.paypal.com/v2/invoicing") returns error? {
+    public isolated function init(ConnectionConfig config, string serviceUrl = "https://api-m.sandbox.paypal.com") returns error? {
         http:ClientConfiguration httpClientConfig = {auth: config.auth, httpVersion: config.httpVersion, http1Settings: config.http1Settings, http2Settings: config.http2Settings, timeout: config.timeout, forwarded: config.forwarded, followRedirects: config.followRedirects, poolConfig: config.poolConfig, cache: config.cache, compression: config.compression, circuitBreaker: config.circuitBreaker, retryConfig: config.retryConfig, cookieConfig: config.cookieConfig, responseLimits: config.responseLimits, secureSocket: config.secureSocket, proxy: config.proxy, socketConfig: config.socketConfig, validation: config.validation, laxDataBinding: config.laxDataBinding};
         self.clientEp = check new (serviceUrl, httpClientConfig);
     }
@@ -21,9 +21,9 @@ public isolated client class Client {
     #
     # + headers - Headers to be sent with the request 
     # + queries - Queries to be sent with the request 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists invoices with details 
-    resource isolated function get invoices(map<string|string[]> headers = {}, *InvoicesListQueries queries) returns Invoices|error {
-        string resourcePath = string `/invoices`;
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists invoices with details. 
+    resource isolated function get v2/invoicing/invoices(map<string|string[]> headers = {}, *InvoicesListQueries queries) returns invoices|error {
+        string resourcePath = string `/v2/invoicing/invoices`;
         resourcePath = resourcePath + check getPathForQueryParam(queries);
         return self.clientEp->get(resourcePath, headers);
     }
@@ -31,10 +31,10 @@ public isolated client class Client {
     # Create draft invoice
     #
     # + headers - Headers to be sent with the request 
-    # + payload - The invoice details which includes all information of the invoice like items, billing information 
-    # + return - A successful request returns the HTTP `201 Created` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function post invoices(Invoice payload, map<string|string[]> headers = {}) returns Invoice|error {
-        string resourcePath = string `/invoices`;
+    # + payload - The invoice details which includes all information of the invoice like items, billing information. 
+    # + return - A successful request returns the HTTP `201 Created` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code>. 
+    resource isolated function post v2/invoicing/invoices(invoice payload, map<string|string[]> headers = {}) returns invoice|error {
+        string resourcePath = string `/v2/invoicing/invoices`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -43,12 +43,12 @@ public isolated client class Client {
 
     # Send invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - The email or SMS notification to send to the payer when they send an invoice. 
-    # + return - A successful request returns the HTTP `200 OK` when the invoice issue date is current date 
-    resource isolated function post invoices/[string invoiceId]/send(Notification payload, map<string|string[]> headers = {}) returns LinkDescription|'202Response|error {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/send`;
+    # + payload - The email or SMS notification to send to the payer when they send an invoice.. 
+    # + return - A successful request returns the HTTP `200 OK` when the invoice issue date is current date. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/send(notification payload, map<string|string[]> headers = {}) returns link_description|'202\-response|error {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/send`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -57,12 +57,12 @@ public isolated client class Client {
 
     # Send invoice reminder
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - The email or SMS notification that will be sent to the payer for reminder 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function post invoices/[string invoiceId]/remind(Notification payload, map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/remind`;
+    # + payload - The email or SMS notification that will be sent to the payer for reminder. 
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/remind(notification payload, map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/remind`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -71,12 +71,12 @@ public isolated client class Client {
 
     # Cancel sent invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - The email or SMS notification that will be sent to the payer on cancellation 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function post invoices/[string invoiceId]/cancel(Notification payload, map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/cancel`;
+    # + payload - The email or SMS notification that will be sent to the payer on cancellation. 
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/cancel(notification payload, map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/cancel`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -85,12 +85,12 @@ public isolated client class Client {
 
     # Record payment for invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - The details of the payment to record against the invoice 
-    # + return - A successful request returns the HTTP `200 Created` status code and a reference to the recorded payment 
-    resource isolated function post invoices/[string invoiceId]/payments(PaymentDetail payload, map<string|string[]> headers = {}) returns PaymentReference|error {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/payments`;
+    # + payload - The details of the payment to record against the invoice. 
+    # + return - A successful request returns the HTTP `200 Created` status code and a reference to the recorded payment. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/payments(payment_detail payload, map<string|string[]> headers = {}) returns payment_reference|error {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/payments`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -99,23 +99,23 @@ public isolated client class Client {
 
     # Delete external payment
     #
-    # + invoiceId - The ID of the draft invoice to delete
-    # + transactionId - The ID of the external refund transaction to delete
+    # + invoice_id - The ID of the draft invoice to delete.
+    # + transaction_id - The ID of the external refund transaction to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function delete invoices/[string invoiceId]/payments/[string transactionId](map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/payments/${getEncodedUri(transactionId)}`;
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function delete v2/invoicing/invoices/[string invoice_id]/payments/[string transaction_id](map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/payments/${getEncodedUri(transaction_id)}`;
         return self.clientEp->delete(resourcePath, headers = headers);
     }
 
     # Record refund for invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - The details of the refund to record against the invoice 
-    # + return - A successful request returns the HTTP `200 Created` status code and a reference to the recorded refund 
-    resource isolated function post invoices/[string invoiceId]/refunds(RefundDetail payload, map<string|string[]> headers = {}) returns RefundReference|error {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/refunds`;
+    # + payload - The details of the refund to record against the invoice. 
+    # + return - A successful request returns the HTTP `200 Created` status code and a reference to the recorded refund. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/refunds(refund_detail payload, map<string|string[]> headers = {}) returns refund_reference|error {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/refunds`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -124,23 +124,23 @@ public isolated client class Client {
 
     # Delete external refund
     #
-    # + invoiceId - The ID of the draft invoice to delete
-    # + transactionId - The ID of the external refund transaction to delete
+    # + invoice_id - The ID of the draft invoice to delete.
+    # + transaction_id - The ID of the external refund transaction to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function delete invoices/[string invoiceId]/refunds/[string transactionId](map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/refunds/${getEncodedUri(transactionId)}`;
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function delete v2/invoicing/invoices/[string invoice_id]/refunds/[string transaction_id](map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/refunds/${getEncodedUri(transaction_id)}`;
         return self.clientEp->delete(resourcePath, headers = headers);
     }
 
     # Generate QR code
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - Optional configuration parameters to adjust QR code width, height and the encoded URL 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows the QR code as a PNG image 
-    resource isolated function post invoices/[string invoiceId]/generate\-qr\-code(QrConfig payload, map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}/generate-qr-code`;
+    # + payload - Optional configuration parameters to adjust QR code width, height and the encoded URL. 
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows the QR code as a PNG image. 
+    resource isolated function post v2/invoicing/invoices/[string invoice_id]/generate\-qr\-code(qr_config payload, map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}/generate-qr-code`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -150,32 +150,32 @@ public isolated client class Client {
     # Generate invoice number
     #
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows the next invoice number 
-    resource isolated function post generate\-next\-invoice\-number(map<string|string[]> headers = {}) returns InvoiceNumber|error {
-        string resourcePath = string `/generate-next-invoice-number`;
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows the next invoice number. 
+    resource isolated function post v2/invoicing/generate\-next\-invoice\-number(map<string|string[]> headers = {}) returns invoice_number|error {
+        string resourcePath = string `/v2/invoicing/generate-next-invoice-number`;
         http:Request request = new;
         return self.clientEp->post(resourcePath, request, headers);
     }
 
     # Show invoice details
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows invoice details 
-    resource isolated function get invoices/[string invoiceId](map<string|string[]> headers = {}) returns Invoice|error {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}`;
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows invoice details. 
+    resource isolated function get v2/invoicing/invoices/[string invoice_id](map<string|string[]> headers = {}) returns invoice|error {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}`;
         return self.clientEp->get(resourcePath, headers);
     }
 
     # Fully update invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
     # + queries - Queries to be sent with the request 
-    # + payload - A representation of changes to make in the invoice 
-    # + return - A successful request returns the HTTP `200 OK` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function put invoices/[string invoiceId](Invoice payload, map<string|string[]> headers = {}, *InvoicesUpdateQueries queries) returns Invoice|error {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}`;
+    # + payload - A representation of changes to make in the invoice. 
+    # + return - A successful request returns the HTTP `200 OK` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code>. 
+    resource isolated function put v2/invoicing/invoices/[string invoice_id](invoice payload, map<string|string[]> headers = {}, *InvoicesUpdateQueries queries) returns invoice|error {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}`;
         resourcePath = resourcePath + check getPathForQueryParam(queries);
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
@@ -185,11 +185,11 @@ public isolated client class Client {
 
     # Delete invoice
     #
-    # + invoiceId - The ID of the draft invoice to delete
+    # + invoice_id - The ID of the draft invoice to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function delete invoices/[string invoiceId](map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}`;
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function delete v2/invoicing/invoices/[string invoice_id](map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/invoices/${getEncodedUri(invoice_id)}`;
         return self.clientEp->delete(resourcePath, headers = headers);
     }
 
@@ -197,10 +197,10 @@ public isolated client class Client {
     #
     # + headers - Headers to be sent with the request 
     # + queries - Queries to be sent with the request 
-    # + payload - The invoice search can be used to retrieve the invoices based on the search parameters 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists the invoices that match the search criteria 
-    resource isolated function post search\-invoices(SearchData payload, map<string|string[]> headers = {}, *InvoicesSearchInvoicesQueries queries) returns Invoices|error {
-        string resourcePath = string `/search-invoices`;
+    # + payload - The invoice search can be used to retrieve the invoices based on the search parameters. 
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists the invoices that match the search criteria. 
+    resource isolated function post v2/invoicing/search\-invoices(search_data payload, map<string|string[]> headers = {}, *InvoicesSearchInvoicesQueries queries) returns invoices|error {
+        string resourcePath = string `/v2/invoicing/search-invoices`;
         resourcePath = resourcePath + check getPathForQueryParam(queries);
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
@@ -212,9 +212,9 @@ public isolated client class Client {
     #
     # + headers - Headers to be sent with the request 
     # + queries - Queries to be sent with the request 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists invoices 
-    resource isolated function get templates(map<string|string[]> headers = {}, *TemplatesListQueries queries) returns Templates|error {
-        string resourcePath = string `/templates`;
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that lists invoices. 
+    resource isolated function get v2/invoicing/templates(map<string|string[]> headers = {}, *TemplatesListQueries queries) returns templates|error {
+        string resourcePath = string `/v2/invoicing/templates`;
         resourcePath = resourcePath + check getPathForQueryParam(queries);
         return self.clientEp->get(resourcePath, headers);
     }
@@ -222,9 +222,9 @@ public isolated client class Client {
     # Create template
     #
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `201 Created` status code. A JSON response body that shows template details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function post templates(Template payload, map<string|string[]> headers = {}) returns Template|error {
-        string resourcePath = string `/templates`;
+    # + return - A successful request returns the HTTP `201 Created` status code. A JSON response body that shows template details is returned if you set <code>prefer=return=representation</code>. 
+    resource isolated function post v2/invoicing/templates(template payload, map<string|string[]> headers = {}) returns template|error {
+        string resourcePath = string `/v2/invoicing/templates`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -233,22 +233,22 @@ public isolated client class Client {
 
     # Show template details
     #
-    # + templateId - The ID of the template to delete
+    # + template_id - The ID of the template to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows template details 
-    resource isolated function get templates/[string templateId](map<string|string[]> headers = {}) returns Template|error {
-        string resourcePath = string `/templates/${getEncodedUri(templateId)}`;
+    # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows template details. 
+    resource isolated function get v2/invoicing/templates/[string template_id](map<string|string[]> headers = {}) returns template|error {
+        string resourcePath = string `/v2/invoicing/templates/${getEncodedUri(template_id)}`;
         return self.clientEp->get(resourcePath, headers);
     }
 
     # Fully update template
     #
-    # + templateId - The ID of the template to delete
+    # + template_id - The ID of the template to delete.
     # + headers - Headers to be sent with the request 
-    # + payload - A representation of changes to make in the template 
-    # + return - A successful request returns the HTTP `200 OK` status code. A JSON response body that shows template details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function put templates/[string templateId](Template payload, map<string|string[]> headers = {}) returns Template|error {
-        string resourcePath = string `/templates/${getEncodedUri(templateId)}`;
+    # + payload - A representation of changes to make in the template. 
+    # + return - A successful request returns the HTTP `200 OK` status code. A JSON response body that shows template details is returned if you set <code>prefer=return=representation</code>. 
+    resource isolated function put v2/invoicing/templates/[string template_id](template payload, map<string|string[]> headers = {}) returns template|error {
+        string resourcePath = string `/v2/invoicing/templates/${getEncodedUri(template_id)}`;
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
@@ -257,11 +257,11 @@ public isolated client class Client {
 
     # Delete template
     #
-    # + templateId - The ID of the template to delete
+    # + template_id - The ID of the template to delete.
     # + headers - Headers to be sent with the request 
-    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body 
-    resource isolated function delete templates/[string templateId](map<string|string[]> headers = {}) returns error? {
-        string resourcePath = string `/templates/${getEncodedUri(templateId)}`;
+    # + return - A successful request returns the HTTP `204 No Content` status code with no JSON response body. 
+    resource isolated function delete v2/invoicing/templates/[string template_id](map<string|string[]> headers = {}) returns error? {
+        string resourcePath = string `/v2/invoicing/templates/${getEncodedUri(template_id)}`;
         return self.clientEp->delete(resourcePath, headers = headers);
     }
 }
