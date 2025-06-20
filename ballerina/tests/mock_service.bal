@@ -1,27 +1,26 @@
-// ----------------------------------------------------------------------------------
-// Mock Server for PayPal Invoice Connector
-
-// POST /v2/invoicing/generate-next-invoice-number
-// POST /v2/invoicing/invoices
-// GET /v2/invoicing/invoices
-// GET /v2/invoicing/invoices/{invoiceId}
-// POST /invoices/{invoiceId}/send
-// POST /invoices/{invoiceId}/remind
-// POST /invoices/{invoiceId}/cancel
-// POST /invoices/{invoiceId}/payments
-// DELETE /invoices/{invoiceId}/payments/{paymentId}
-
-// This is used for connector testing without hitting the actual PayPal sandbox/live servers.
-// ----------------------------------------------------------------------------------
+// // Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+// //
+// // WSO2 LLC. licenses this file to you under the Apache License,
+// // Version 2.0 (the "License"); you may not use this file except
+// // in compliance with the License.
+// // You may obtain a copy of the License at
+// //
+// // http://www.apache.org/licenses/LICENSE-2.0
+// //
+// // Unless required by applicable law or agreed to in writing,
+// // software distributed under the License is distributed on an
+// // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// // KIND, either express or implied.  See the License for the
+// // specific language governing permissions and limitations
+// // under the License.
 
 import ballerina/http;
 import ballerina/io;
+import ballerina/time;
 
 listener http:Listener mockListener = new (9090);
 
-// In-memory store
-map<json> invoiceStore = {};
-map<json> paymentStore = {};
+map<string> invoiceStates = {};
 
 service / on mockListener {
 
@@ -31,69 +30,61 @@ service / on mockListener {
     }
 
     // POST /v2/invoicing/invoices
-    resource function post v2/invoicing/invoices(http:Caller caller, http:Request req) returns error? {
-        json payload = check req.getJsonPayload();
-        http:Response response = new;
-        response.statusCode = http:STATUS_CREATED;
-        response.setJsonPayload(payload);
-        check caller->respond(response);
+    resource function post v2/invoicing/invoices(@http:Payload json payload) returns json {
+        json response = {
+            id: "INV-MOCK-001",
+            detail: {
+                invoice_number: "INV-MOCK-001",
+                currency_code: "USD",
+                note: "Mock Invoice"
+            },
+            payload: payload
+        };
+        return response;
     }
 
-    // GET /v2/invoicing/invoices (list)
-    resource function get v2/invoicing/invoices(
-            @http:Query int page = 1,
-            @http:Query int page_size = 20,
-            @http:Query string fields = "all",
-            @http:Query boolean total_required = false
-    ) returns json|error {
-        if page < 1 {
-            return {
-                "timestamp": "2025-06-19T14:59:56Z",
-                "status": 400,
-                "reason": "Bad Request",
-                "message": "Invalid page number"
-            };
-        }
-
+    // GET /v2/invoicing/invoices
+    resource function get v2/invoicing/invoices() returns json {
         return {
-            "total_count": 2,
-            "items": [
+            total_count: 2,
+            items: [
                 {
-                    "id": "INV-MOCK-001",
-                    "status": "DRAFT",
-                    "detail": {
-                        "invoice_number": "INV-MOCK-001",
-                        "currency_code": "USD",
-                        "note": "Mock Invoice 1"
+                    id: "INV-MOCK-001",
+                    status: "DRAFT",
+                    detail: {
+                        invoice_number: "INV-MOCK-001",
+                        currency_code: "USD",
+                        note: "Mock Invoice 1"
                     }
                 },
                 {
-                    "id": "INV-MOCK-002",
-                    "status": "SENT",
-                    "detail": {
-                        "invoice_number": "INV-MOCK-002",
-                        "currency_code": "USD",
-                        "note": "Mock Invoice 2"
+                    id: "INV-MOCK-002",
+                    status: "SENT",
+                    detail: {
+                        invoice_number: "INV-MOCK-002",
+                        currency_code: "USD",
+                        note: "Mock Invoice 2"
                     }
                 }
             ]
         };
     }
 
-    // ✅ GET /v2/invoicing/invoices/{invoiceId} — used by testShowInvoiceDetails
-    resource function get v2/invoicing/invoices/[string invoiceId](http:Caller caller, http:Request req) returns error? {
-        json responsePayload = {
+    // GET /v2/invoicing/invoices/{invoiceId} — main working version
+    resource function get v2/invoicing/invoices/[string invoiceId]() returns invoice|error {
+
+        invoice mockInvoice = {
             id: invoiceId,
-            status: invoiceId == "INV-MOCK-001" ? "DRAFT" : "SENT",
+            status: "DRAFT",
             detail: {
                 invoice_number: invoiceId,
+                currency_code: "USD",
                 reference: "Ref-Mock",
-                currency_code: "USD",
-                note: "This is a mock invoice."
-            },
-            amount: {
-                currency_code: "USD",
-                value: "100.00"
+                note: "This is a mock invoice.",
+                memo: "Mock Memo",
+                payment_term: {
+                    term_type: "NET_30"
+                }
             },
             invoicer: {
                 name: {
@@ -112,164 +103,94 @@ service / on mockListener {
                         email_address: "john.doe@example.com"
                     }
                 }
-            ]
+            ],
+            items: [
+                {
+                    name: "Mock Item",
+                    quantity: "1",
+                    unit_amount: {
+                        currency_code: "USD",
+                        value: "100.00"
+                    }
+                }
+            ],
+            amount: {
+                currency_code: "USD",
+                value: "100.00"
+            }
         };
 
-        http:Response res = new;
-        res.statusCode = http:STATUS_OK;
-        res.setJsonPayload(responsePayload);
-        check caller->respond(res);
+        return mockInvoice;
     }
 
-    // POST /invoices/{invoiceId}/send
-    resource function post invoices/[string invoiceId]/send(http:Caller caller, http:Request req) returns error? {
-        json|error payload = req.getJsonPayload();
-        if payload is json {
-            json responseBody = {
-                "id": invoiceId,
-                "status": "SENT",
-                "detail": {
-                    "message": "Invoice sent successfully"
-                }
+    // POST /v2/invoicing/invoices/{invoiceId}/send
+    resource function post v2/invoicing/invoices/[string invoiceId]/send() returns json {
+        invoiceStates[invoiceId] = "SENT";
+        time:Utc currentTime = time:utcNow();
+        string currentTimestamp = time:utcToString(currentTime);
+        io:println("Invoice sent successfully. Timestamp: ", currentTimestamp);
+
+        return {
+            id: invoiceId,
+            status: "SENT",
+            success: true,
+            detail: {
+                message: "Invoice sent successfully and accepted for future delivery (202)",
+                timestamp: currentTimestamp
+            }
+        };
+    }
+
+    // POST /v2/invoicing/invoices/{invoiceId}/remind
+    resource function post v2/invoicing/invoices/[string invoiceId]/remind() returns json {
+        if invoiceStates[invoiceId] != "SENT" {
+            return {
+                "error": true,
+                message: "Invoice is not in SENT state. Cannot send reminder."
             };
-
-            http:Response response = new;
-            response.statusCode = http:STATUS_ACCEPTED;
-            response.setJsonPayload(responseBody);
-            check caller->respond(response);
-        } else {
-            http:Response errorResponse = new;
-            errorResponse.statusCode = http:STATUS_BAD_REQUEST;
-            errorResponse.setJsonPayload({message: "Invalid JSON payload"});
-            check caller->respond(errorResponse);
         }
+
+        return {
+            id: invoiceId,
+            status: "SENT",
+            detail: {
+                message: "Reminder sent successfully"
+            }
+        };
     }
 
-    // POST /invoices/{invoiceId}/remind
-    resource function post invoices/[string invoiceId]/remind(http:Caller caller, http:Request req) returns error? {
-        json|error payload = req.getJsonPayload();
-        if payload is json {
-            io:println("📩 Reminder payload for invoice ID: ", invoiceId);
-            io:println(payload.toJsonString());
-
-            json responseBody = {
-                "id": invoiceId,
-                "status": "SENT",
-                "detail": {
-                    "message": "Invoice reminder sent successfully"
-                }
+    // POST /v2/invoicing/invoices/{invoiceId}/cancel
+    resource function post v2/invoicing/invoices/[string invoiceId]/cancel() returns json {
+        if invoiceStates[invoiceId] != "SENT" {
+            return {
+                "error": true,
+                message: "Invoice is not in SENT state. Cannot cancel."
             };
-
-            http:Response response = new;
-            response.statusCode = http:STATUS_OK;
-            response.setJsonPayload(responseBody);
-            check caller->respond(response);
-        } else {
-            http:Response errorResponse = new;
-            errorResponse.statusCode = http:STATUS_BAD_REQUEST;
-            errorResponse.setJsonPayload({message: "Invalid JSON payload"});
-            check caller->respond(errorResponse);
         }
+
+        return {
+            id: invoiceId,
+            status: "CANCELLED",
+            detail: {
+                message: "Invoice cancelled successfully"
+            }
+        };
     }
 
-    // POST /invoices/{invoiceId}/cancel
-    resource function post invoices/[string invoiceId]/cancel(http:Caller caller, http:Request req) returns error? {
-        json|error payload = req.getJsonPayload();
-        if payload is json {
-            io:println("🚫 Cancel payload for invoice ID: ", invoiceId);
-            io:println(payload.toJsonString());
-
-            json responseBody = {
-                "id": invoiceId,
-                "status": "CANCELLED",
-                "detail": {
-                    "message": "Invoice cancelled successfully"
-                }
-            };
-
-            http:Response res = new;
-            res.statusCode = http:STATUS_OK;
-            res.setJsonPayload(responseBody);
-            check caller->respond(res);
-        } else {
-            http:Response errorResponse = new;
-            errorResponse.statusCode = http:STATUS_BAD_REQUEST;
-            errorResponse.setJsonPayload({message: "Invalid JSON payload"});
-            check caller->respond(errorResponse);
-        }
+    // POST /v2/invoicing/invoices/{invoiceId}/payments
+    resource function post v2/invoicing/invoices/[string invoiceId]/payments() returns json {
+        return {
+            payment_id: "PAY-MOCK-" + invoiceId + "-001",
+            status: "RECORD_SUCCESS",
+            detail: {
+                message: "Payment recorded successfully"
+            }
+        };
     }
 
-    // DELETE /invoices/{invoiceId}/payments/{paymentId}
-    resource function delete invoices/[string invoiceId]/payments/[string paymentId](http:Caller caller, http:Request req) returns error? {
-        io:println("🗑️ Delete payment for invoice ID: ", invoiceId, ", payment ID: ", paymentId);
-
-        string paymentKey = invoiceId + "-" + paymentId;
-        if paymentStore.hasKey(paymentKey) {
-            json _ = paymentStore.remove(paymentKey);
-            http:Response res = new;
-            res.statusCode = http:STATUS_NO_CONTENT;
-            check caller->respond(res);
-        } else {
-            http:Response res = new;
-            res.statusCode = http:STATUS_NOT_FOUND;
-            res.setJsonPayload({message: "Payment not found"});
-            check caller->respond(res);
-        }
+    // DELETE /v2/invoicing/invoices/{invoiceId}
+    resource function delete v2/invoicing/invoices/[string invoiceId]() returns http:NoContent {
+        io:println("Mock delete invoice invoked for ID: ", invoiceId);
+        return http:NO_CONTENT;
     }
-
-    // POST /invoices/{invoiceId}/payments
-    resource function post invoices/[string invoiceId]/payments(http:Caller caller, http:Request req) returns error? {
-        json|error payload = req.getJsonPayload();
-        if payload is json {
-            io:println("💰 Record payment for invoice ID: ", invoiceId);
-            io:println(payload.toJsonString());
-
-            string newPaymentId = "PAY-MOCK-" + invoiceId + "-001";
-            paymentStore[invoiceId + "-" + newPaymentId] = payload;
-
-            json responseBody = {
-                "payment_id": newPaymentId,
-                "status": "RECORD_SUCCESS",
-                "detail": {
-                    "message": "Payment recorded successfully"
-                }
-            };
-
-            http:Response res = new;
-            res.statusCode = http:STATUS_CREATED;
-            res.setJsonPayload(responseBody);
-            check caller->respond(res);
-        } else {
-            http:Response errorResponse = new;
-            errorResponse.statusCode = http:STATUS_BAD_REQUEST;
-            errorResponse.setJsonPayload({message: "Invalid JSON payload"});
-            check caller->respond(errorResponse);
-        }
-    }
-
-    // POST /v2/invoicing/invoices/{invoiceId}/generate-qr-code
-    // resource function post v2/invoicing/invoices/[string invoiceId]/generate\-qr\-code(http:Caller caller, http:Request req) returns error? {
-    //     json|error payload = req.getJsonPayload();
-
-    //     if payload is json {
-    //         io:println("Mock server received QR code generate request for invoice ID: ", invoiceId);
-    //         io:println(payload.toJsonString());
-
-    //         // Simulate a PNG image encoded as base64 string or simply a placeholder string
-    //         json responseBody = {
-    //             "qr_code_png_base64": "iVBORw0KGgoAAAANSUhEUgAAASwAAAEsCAIAAAD2HXeMAAA..."
-    //         };
-
-    //         http:Response response = new;
-    //         response.statusCode = http:STATUS_OK;
-    //         response.setJsonPayload(responseBody);
-    //         check caller->respond(response);
-    //     } else {
-    //         http:Response errorResponse = new;
-    //         errorResponse.statusCode = http:STATUS_BAD_REQUEST;
-    //         errorResponse.setJsonPayload({message: "Invalid JSON payload"});
-    //         check caller->respond(errorResponse);
-    //     }
-    // }
-
 }
