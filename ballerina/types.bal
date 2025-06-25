@@ -20,6 +20,12 @@
 import ballerina/constraint;
 import ballerina/http;
 
+# The details of the invoice. Includes invoice number, date, payment terms, and audit metadata
+public type InvoiceDetail record {
+    *Detail;
+    *InvoiceDetailAllOf2;
+};
+
 # OAuth2 Client Credentials Grant Configs
 public type OAuth2ClientCredentialsGrantConfig record {|
     *http:OAuth2ClientCredentialsGrantConfig;
@@ -27,164 +33,218 @@ public type OAuth2ClientCredentialsGrantConfig record {|
     string tokenUrl = "https://api-m.sandbox.paypal.com/v1/oauth2/token";
 |};
 
-public type '202\-response record {
-    link_description[] links?;
+# The invoice details which includes all information of the invoice like items, billing information
+public type Invoice record {
+    # The invoice amount summary of item total, discount, tax total, and shipping
+    AmountSummaryDetail amount?;
+    # The invoice configuration details. Includes partial payment, tip, and tax calculated after discount
+    Configuration configuration?;
+    # An array of payments registered against the invoice
+    Payments payments?;
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money gratuity?;
+    # The billing and shipping information. Includes name, email, address, phone and language
+    @constraint:Array {maxLength: 100}
+    RecipientInfo[] primary_recipients?;
+    # The invoicing refund details. Includes the refund type, date, amount, and method
+    Refunds refunds?;
+    Money due_amount?;
+    # The parent ID to an invoice that defines the group invoice to which the invoice is related
+    @constraint:String {maxLength: 30}
+    string parent_id?;
+    # The invoicer business information that appears on the invoice
+    InvoicerInfo invoicer?;
+    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links)
+    LinkDescription[] links?;
+    # The ID of the invoice
+    @constraint:String {maxLength: 30}
+    string id?;
+    # The details of the invoice. Includes invoice number, date, payment terms, and audit metadata
+    InvoiceDetail detail;
+    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
+    @constraint:Array {maxLength: 100}
+    EmailAddress[] additional_recipients?;
+    # An array of invoice line item information
+    @constraint:Array {maxLength: 100}
+    Item[] items?;
+    # The status of the invoice
+    InvoiceStatus status?;
 };
 
-# The audit metadata. Captures all invoicing actions on create, send, update, and cancel.
-public type metadata record {
-    *template_metadata;
-    *MetadataAllOf2;
+# The custom amount to apply to an invoice. If you include a label, you must include a custom amount
+public type CustomAmount record {
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The label to the custom amount of the invoice
+    @constraint:String {maxLength: 50}
+    string label;
 };
 
-# The template configuration details. Includes tax information, tip, and partial payment.
-public type template_configuration record {
-    # Indicates whether the tax is calculated before or after a discount. If `false`, the tax is calculated before a discount. If `true`, the tax is calculated after a discount.
-    boolean tax_calculated_after_discount = true;
-    # Indicates whether the unit price includes tax.
-    boolean tax_inclusive = false;
-    # Indicates whether the invoice enables the customer to enter a tip amount during payment. If `true`, the invoice shows a tip amount field so that the customer can enter a tip amount. If `false`, the invoice does not show a tip amount field.<blockquote><strong>Note:</strong> This feature is not available for users in `Hong Kong`, `Taiwan`, `India`, or `Japan`.</blockquote>
-    boolean allow_tip = false;
-    # The partial payment details. Includes the minimum amount that the invoicer expects from the payer.
-    partial_payment partial_payment?;
+# The invoice configuration details. Includes partial payment, tip, and tax calculated after discount
+public type Configuration record {
+    *TemplateConfiguration;
+    *ConfigurationAllOf2;
+};
+
+# An array of payments registered against the invoice
+public type Payments record {
+    Money paid_amount?;
+    # An array of payment details for the invoice. The payment details of the invoice like payment type, method, date, discount and transaction type
+    @constraint:Array {maxLength: 100}
+    PaymentDetail[] transactions?;
 };
 
 public type MetadataAllOf2 record {
     # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time cancel_time?;
+    DateTime cancel_time?;
     # The actor who canceled the resource.
     string cancelled_by?;
     # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time first_sent_time?;
+    DateTime first_sent_time?;
     # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time last_sent_time?;
+    DateTime last_sent_time?;
     # The email address of the account that last sent the resource.
     string last_sent_by?;
     # The frequency at which the invoice is sent:<ul><li>Multiple recipient. Sent to multiple recipients.</li><li>Batch. Sent in a batch.</li><li>Regular single. Sent one time to a single recipient.</li></ul>
-    invoice_creation_flow created_by_flow?;
+    InvoiceCreationFlow created_by_flow?;
     # The URL for the invoice payer view hosted on paypal.com.
     string recipient_view_url?;
     # The URL for the invoice merchant view hosted on paypal.com.
     string invoicer_view_url?;
 };
 
-# The discount as a percent or amount at invoice level. The invoice discount amount is subtracted from the item total.
-public type discount record {
-    # The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`.
-    percentage percent?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-};
-
-# The [language tag](https://tools.ietf.org/html/bcp47#section-2) for the language in which to localize the error-related strings, such as messages, issues, and suggested actions. The tag is made up of the [ISO 639-2 language code](https://www.loc.gov/standards/iso639-2/php/code_list.php), the optional [ISO-15924 script tag](https://www.unicode.org/iso15924/codelists.html), and the [ISO-3166 alpha-2 country code](/docs/integration/direct/rest/country-codes/).
-@constraint:String {maxLength: 10, minLength: 2, pattern: re `^[a-z]{2}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}))?$`}
-public type language string;
-
-# The configuration for a QR code.
-public type qr_config record {
-    # The width, in pixels, of the QR code image. Value is from `150` to `500`.
+# The configuration for a QR code
+public type QrConfig record {
+    # The width, in pixels, of the QR code image. Value is from `150` to `500`
     @constraint:Int {minValue: 150, maxValue: 500}
     int width = 500;
-    # The height, in pixels, of the QR code image. Value is from `150` to `500`.
-    @constraint:Int {minValue: 150, maxValue: 500}
-    int height = 500;
-    # The type of URL for which to generate a QR code. Valid values are `pay` and `details`.
+    # The type of URL for which to generate a QR code. Valid values are `pay` and `details`
     @constraint:String {maxLength: 7}
     string action = "pay";
+    # The height, in pixels, of the QR code image. Value is from `150` to `500`
+    @constraint:Int {minValue: 150, maxValue: 500}
+    int height = 500;
 };
 
-# The field names for the invoice line items in the template.
-public type template_item_field "ITEMS_QUANTITY"|"ITEMS_DESCRIPTION"|"ITEMS_DATE"|"ITEMS_DISCOUNT"|"ITEMS_TAX";
-
-# The invoicer business information that appears on the invoice.
-public type invoicer_info record {
-    *contact_name_address;
-    *InvoicerInfoAllOf2;
+# An array of merchant-created templates with associated details that include the emails, addresses, and phone numbers from the user's PayPal profile
+public type Templates record {
+    # The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
+    EmailAddress emails?;
+    # An array of addresses in the user's PayPal profile
+    AddressPortable[] addresses?;
+    # An array of details for each template. If `fields` is `none`, returns only the template name, ID, and default status
+    Template[] templates?;
+    # An array of phone numbers in the user's PayPal profile
+    PhoneDetail[] phones?;
+    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links)
+    LinkDescription[] links?;
 };
 
-# The request-related [HATEOAS link](/docs/api/reference/api-responses/#hateoas-links) information.
-public type link_description record {
-    # The complete target URL. To make the related call, combine the method with this [URI Template-formatted](https://tools.ietf.org/html/rfc6570) link. For pre-processing, include the `$`, `(`, and `)` characters. The `href` is the key HATEOAS component that links a completed call with a subsequent call.
-    string href;
-    # The [link relation type](https://tools.ietf.org/html/rfc5988#section-4), which serves as an ID for a link that unambiguously describes the semantics of the link. See [Link Relations](https://www.iana.org/assignments/link-relations/link-relations.xhtml).
-    string rel;
-    # The HTTP method required to make the related call.
-    "GET"|"POST"|"PUT"|"DELETE"|"HEAD"|"CONNECT"|"OPTIONS"|"PATCH" method?;
+# The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total
+public type Tax record {
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The name of the tax applied on the invoice items
+    @constraint:String {maxLength: 100}
+    string name;
+    # The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`
+    Percentage percent;
 };
 
-public type TemplateDetailAllOf2 record {
-    # The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days.
-    payment_term payment_term?;
-    # The audit metadata. Captures all template actions on create and update.
-    template_metadata metadata?;
-};
-
-# The email or SMS notification to send to the invoicer or payer on sending an invoice.
-public type notification record {
-    # The subject of the email that is sent as a notification to the recipient.
-    @constraint:String {maxLength: 4000}
-    string subject?;
-    # A note to the payer.
-    @constraint:String {maxLength: 4000}
-    string note?;
-    # Indicates whether to send a copy of the email to the merchant.
-    boolean send_to_invoicer = false;
-    # Indicates whether to send a copy of the email to the recipient.
-    boolean send_to_recipient = true;
-    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
-    @constraint:Array {maxLength: 100}
-    email_address[] additional_recipients?;
-};
-
-# The template details. Includes invoicer business information, invoice recipients, items, and configuration.
-public type template_info record {
-    # The template-related details. Includes notes, terms and conditions, memo, and attachments.
-    template_detail detail?;
-    # The invoicer business information that appears on the invoice.
-    invoicer_info invoicer?;
-    # The billing and shipping information. Includes name, email, address, phone, and language.
-    @constraint:Array {maxLength: 100}
-    recipient_info[] primary_recipients?;
-    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
-    @constraint:Array {maxLength: 100}
-    email_address[] additional_recipients?;
-    # An array of invoice line-item information.
-    @constraint:Array {maxLength: 100}
-    item[] items?;
-    # The template configuration details. Includes tax information, tip, and partial payment.
-    template_configuration configuration?;
-    # The invoice amount summary of item total, discount, tax total, and shipping.
-    amount_summary_detail amount?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money due_amount?;
+# The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days
+public type InvoicePaymentTerm record {
+    *PaymentTerm;
+    *InvoicePaymentTermAllOf2;
 };
 
 # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
 @constraint:String {maxLength: 64, minLength: 20, pattern: re `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])[T,t]([0-1][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$`}
-public type date_time string;
+public type DateTime string;
 
-# An array of merchant invoices. Includes the total invoices count and [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links) for navigation.
-public type invoices record {
-    # The total number of pages that are available for the search criteria. <blockquote><strong>Note:</strong> Clients MUST NOT assume that the value of total_pages is constant. The value MAY change from one request to the next</blockquote>
-    int total_pages?;
-    # The total number of invoices that match the search criteria.<blockquote><strong>Note:</strong> Clients MUST NOT assume that the value of <code>total_items</code> is constant. The value MAY change from one request to the next.</blockquote>
-    int total_items?;
-    # The list of invoices that match the search criteria.
-    invoice[] items?;
-    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links).
-    link_description[] links?;
+# The name of the party
+public type Name record {
+    # When the party is a person, the party's full name
+    @constraint:String {maxLength: 300}
+    string full_name?;
+    # The prefix, or title, to the party's name
+    @constraint:String {maxLength: 140}
+    string prefix?;
+    # When the party is a person, the party's surname or family name. Also known as the last name. Required when the party is a person. Use also to store multiple surnames including the matronymic, or mother's, surname
+    @constraint:String {maxLength: 140}
+    string surname?;
+    # When the party is a person, the party's given, or first, name
+    @constraint:String {maxLength: 140}
+    string given_name?;
+    # When the party is a person, the party's middle name. Use also to store multiple middle names including the patronymic, or father's, middle name
+    @constraint:String {maxLength: 140}
+    string middle_name?;
+    # The suffix for the party's name
+    @constraint:String {maxLength: 140}
+    string suffix?;
+    # DEPRECATED. The party's alternate name. Can be a business name, nickname, or any other name that cannot be split into first, last name. Required when the party is a business
+    @constraint:String {maxLength: 300}
+    string alternate_full_name?;
 };
 
-# The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`.
-@constraint:String {pattern: re `^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$`}
-public type percentage string;
+public type TemplateDetailAllOf2 record {
+    # The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days
+    PaymentTerm payment_term?;
+    # The audit metadata. Captures all template actions on create and update
+    TemplateMetadata metadata?;
+};
 
-# The template subtotal setting. Includes the field name and display preference.
-public type template_subtotal_setting record {
-    # The field names in the template for discount, shipping, and custom amounts.
-    template_subtotal_field field_name?;
-    # The template display preference.
-    template_display_preference display_preference?;
+# The template with invoice details to load with all captured fields
+public type Template record {
+    # The template settings. Sets a template as the default template or edit template
+    TemplateSettings settings?;
+    # Indicates whether this template is a invoicer-created custom template. The system generates non-custom templates
+    boolean standard_template?;
+    TemplateInfo template_info?;
+    # The template name.<blockquote><strong>Note:</strong> The template name must be unique.</blockquote>
+    @constraint:String {maxLength: 500, minLength: 1}
+    string name?;
+    UnitOfMeasure unit_of_measure?;
+    # Indicates whether this template is the default template. A invoicer can have one default template
+    boolean default_template?;
+    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links)
+    LinkDescription[] links?;
+    # The ID of the template
+    @constraint:String {maxLength: 30}
+    string id?;
+};
+
+# The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency
+@constraint:String {maxLength: 3, minLength: 3}
+public type CurrencyCode string;
+
+# An array of invoice line item information. The maximum items for an invoice is `100`
+public type Item record {
+    # The quantity of the item that the invoicer provides to the payer. Value is from `-1000000` to `1000000`. Supports up to five decimal places
+    @constraint:String {maxLength: 14}
+    string quantity;
+    DateNoTime item_date?;
+    # The item name for the invoice line item
+    @constraint:String {maxLength: 200}
+    string name;
+    # The item description for the invoice line item
+    @constraint:String {maxLength: 1000}
+    string description?;
+    # The discount as a percent or amount at invoice level. The invoice discount amount is subtracted from the item total
+    Discount discount?;
+    UnitOfMeasure unit_of_measure?;
+    # The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total
+    Tax tax?;
+    # The ID of the invoice line item
+    @constraint:String {maxLength: 22}
+    string id?;
+    Money unit_amount;
+};
+
+# The invoice number
+public type InvoiceNumber record {
+    # The invoice number. If you omit this value, the default is the auto-incremented number from the last number
+    @constraint:String {maxLength: 25}
+    string invoice_number?;
 };
 
 public type ConfigurationAllOf2 record {
@@ -192,16 +252,6 @@ public type ConfigurationAllOf2 record {
     @constraint:String {maxLength: 30}
     string template_id = "PayPal system template";
 };
-
-# The invoice number.
-public type invoice_number record {
-    # The invoice number. If you omit this value, the default is the auto-incremented number from the last number.
-    @constraint:String {maxLength: 25}
-    string invoice_number?;
-};
-
-# The payment mode or method through which the invoicer can accept the payments.
-public type payment_method "BANK_TRANSFER"|"CASH"|"CHECK"|"CREDIT_CARD"|"DEBIT_CARD"|"PAYPAL"|"WIRE_TRANSFER"|"OTHER";
 
 # Provides a set of configurations for controlling the behaviours when communicating with a remote HTTP endpoint.
 @display {label: "Connection Config"}
@@ -249,245 +299,150 @@ public type ConnectionConfig record {|
 
 # Represents the Queries record for the operation: invoices.list
 public type InvoicesListQueries record {
-    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates.
+    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates
     @constraint:Int {minValue: 1, maxValue: 1000}
     int page = 1;
-    # The fields to return in the response. Value is `all` or `none`. To return only the template name, ID, and default attributes, specify `none`.
+    # The fields to return in the response. Value is `all` or `none`. To return only the template name, ID, and default attributes, specify `none`
     string fields = "all";
-    # Indicates whether the to show <code>total_pages</code> and <code>total_items</code> in the response.
+    # Indicates whether the to show <code>total_pages</code> and <code>total_items</code> in the response
     boolean total_required = false;
-    # The maximum number of templates to return in the response.
+    # The maximum number of templates to return in the response
     @constraint:Int {minValue: 1, maxValue: 100}
     int page_size = 20;
 };
 
-# The business name of the party.
-public type business_name record {
-    # Required. The business name of the party.
+# The refund details of the invoice. Includes the refund type, date, amount, and method
+public type RefundDetail record {
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The payment mode or method through which the invoicer can accept the payments
+    PaymentMethod method;
+    # The payment type. Can be PayPal or an external payment. Includes cash or a check
+    PaymentType 'type?;
+    # The ID for a PayPal payment transaction. Required for the `PAYPAL` payment type
+    @constraint:String {maxLength: 22}
+    string refund_id?;
+    DateNoTime refund_date?;
+};
+
+# The business name of the party
+public type BusinessName record {
+    # Required. The business name of the party
     @constraint:String {maxLength: 300}
     string business_name?;
 };
 
-# The phone type.
-public type phone_type "FAX"|"HOME"|"MOBILE"|"OTHER"|"PAGER";
+# The unit of measure for the invoiced item
+public type UnitOfMeasure "QUANTITY"|"HOURS"|"AMOUNT";
 
-# An array of invoice line item information. The maximum items for an invoice is `100`.
-public type item record {
-    # The ID of the invoice line item.
-    @constraint:String {maxLength: 22}
-    string id?;
-    # The item name for the invoice line item.
-    @constraint:String {maxLength: 200}
-    string name;
-    # The item description for the invoice line item.
-    @constraint:String {maxLength: 1000}
-    string description?;
-    # The quantity of the item that the invoicer provides to the payer. Value is from `-1000000` to `1000000`. Supports up to five decimal places.
-    @constraint:String {maxLength: 14}
-    string quantity;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money unit_amount;
-    # The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total.
-    tax tax?;
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time item_date?;
-    # The discount as a percent or amount at invoice level. The invoice discount amount is subtracted from the item total.
-    discount discount?;
-    # The unit of measure for the invoiced item.
-    unit_of_measure unit_of_measure?;
-};
-
-# An array of merchant-created templates with associated details that include the emails, addresses, and phone numbers from the user's PayPal profile.
-public type templates record {
-    # An array of addresses in the user's PayPal profile.
-    address_portable[] addresses?;
-    # The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
-    email_address emails?;
-    # An array of phone numbers in the user's PayPal profile.
-    phone_detail[] phones?;
-    # An array of details for each template. If `fields` is `none`, returns only the template name, ID, and default status.
-    template[] templates?;
-    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links).
-    link_description[] links?;
+# The contact information of the user. Includes name and address
+public type ContactNameAddress record {
+    *BusinessName;
+    *ContactNameAddressAllOf2;
 };
 
 public type BillingInfoAllOf2 record {
     # The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
-    email_address email_address?;
+    EmailAddress email_address?;
     # The invoice recipient's phone numbers. Extension number is not supported.
-    phone_detail[] phones?;
+    PhoneDetail[] phones?;
     # Any additional information about the recipient.
     @constraint:String {maxLength: 40}
     string additional_info?;
-    # The [language tag](https://tools.ietf.org/html/bcp47#section-2) for the language in which to localize the error-related strings, such as messages, issues, and suggested actions. The tag is made up of the [ISO 639-2 language code](https://www.loc.gov/standards/iso639-2/php/code_list.php), the optional [ISO-15924 script tag](https://www.unicode.org/iso15924/codelists.html), and the [ISO-3166 alpha-2 country code](/docs/integration/direct/rest/country-codes/).
-    language language?;
+    # The [language tag](https://tools.ietf.org/html/bcp47#section-2) for the language in which to localize the error-related strings, such as messages, issues, and suggested actions. The tag is made up of the [ISO 639-2 language code](https://www.loc.gov/standards/iso639-2/php/code_list.php), the optional [ISO-15924 script tag](https://www.unicode.org/iso15924/codelists.html), and the [ISO-3166 alpha-2 country code](/docs/integration/direct/rest/country-codes/)
+    Language language?;
 };
 
-# The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total.
-public type tax record {
-    # The name of the tax applied on the invoice items.
+# The portable international postal address. Maps to [AddressValidationMetadata](https://github.com/googlei18n/libaddressinput/wiki/AddressValidationMetadata) and HTML 5.1 [Autofilling form controls: the autocomplete attribute](https://www.w3.org/TR/html51/sec-forms.html#autofilling-form-controls-the-autocomplete-attribute)
+public type AddressPortable record {
+    CountryCode country_code;
+    # The highest level sub-division in a country, which is usually a province, state, or ISO-3166-2 subdivision. Format for postal delivery. For example, `CA` and not `California`. Value, by country, is:<ul><li>UK. A county.</li><li>US. A state.</li><li>Canada. A province.</li><li>Japan. A prefecture.</li><li>Switzerland. A kanton.</li></ul>
+    @constraint:String {maxLength: 300}
+    string admin_area_1?;
+    # The first line of the address. For example, number or street. For example, `173 Drury Lane`. Required for data entry and compliance and risk checks. Must contain the full address
+    @constraint:String {maxLength: 300}
+    string address_line_1?;
+    # A sub-locality, suburb, neighborhood, or district. Smaller than `admin_area_level_2`. Value is:<ul><li>Brazil. Suburb, bairro, or neighborhood.</li><li>India. Sub-locality or district. Street name information is not always available but a sub-locality or district can be a very small area.</li></ul>
     @constraint:String {maxLength: 100}
-    string name;
-    # The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`.
-    percentage percent;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-};
-
-# The file reference. Can be a file in PayPal MediaServ, PayPal DMS, or other custom store.
-public type file_reference record {
-    # The ID of the referenced file.
-    @constraint:String {maxLength: 255, minLength: 1}
-    string id?;
-    # The reference URL for the file.
-    @constraint:String {maxLength: 2000, minLength: 1}
-    string reference_url?;
-    # The [Internet Assigned Numbers Authority (IANA) media type of the file](https://www.iana.org/assignments/media-types/media-types.xhtml).
-    string content_type?;
-    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time create_time?;
-    # The size of the file, in bytes.
-    @constraint:String {pattern: re `^[0-9]+$`}
-    string size?;
-};
-
-# The discount. Can be an item- or invoice-level discount, or both. Can be applied as a percent or amount. If you provide both amount and percent, amount takes precedent.
-public type aggregated_discount record {
-    # The discount as a percent or amount at invoice level. The invoice discount amount is subtracted from the item total.
-    discount invoice_discount?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money item_discount?;
-};
-
-# The reference to the payment detail.
-public type payment_reference record {
-    # The ID for the invoice payment.
-    string payment_id?;
-};
-
-# The refund details of the invoice. Includes the refund type, date, amount, and method.
-public type refund_detail record {
-    # The payment type. Can be PayPal or an external payment. Includes cash or a check.
-    payment_type 'type?;
-    # The ID for a PayPal payment transaction. Required for the `PAYPAL` payment type.
-    @constraint:String {maxLength: 22}
-    string refund_id?;
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time refund_date?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-    # The payment mode or method through which the invoicer can accept the payments.
-    payment_method method;
-};
-
-# The [two-character ISO 3166-1 code](/docs/integration/direct/rest/country-codes/) that identifies the country or region.<blockquote><strong>Note:</strong> The country code for Great Britain is <code>GB</code> and not <code>UK</code> as used in the top-level domain names for that country. Use the `C2` country code for China worldwide for comparable uncontrolled price (CUP) method, bank card, and cross-border transactions.</blockquote>
-@constraint:String {maxLength: 2, minLength: 2, pattern: re `^([A-Z]{2}|C2)$`}
-public type country_code string;
-
-# The payment type. Can be PayPal or an external payment. Includes cash or a check.
-public type payment_type "PAYPAL"|"EXTERNAL";
-
-# The details of the invoice. Includes invoice number, date, payment terms, and audit metadata.
-public type invoice_detail record {
-    *detail;
-    *InvoiceDetailAllOf2;
-};
-
-# The phone number, in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en).
-public type phone record {
-    # The country calling code (CC), in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en). The combined length of the CC and the national number must not be greater than 15 digits. The national number consists of a national destination code (NDC) and subscriber number (SN).
-    @constraint:String {maxLength: 3, minLength: 1, pattern: re `^[0-9]{1,3}?$`}
-    string country_code;
-    # The national number, in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en). The combined length of the country calling code (CC) and the national number must not be greater than 15 digits. The national number consists of a national destination code (NDC) and subscriber number (SN).
-    @constraint:String {maxLength: 14, minLength: 1, pattern: re `^[0-9]{1,14}?$`}
-    string national_number;
-    # The extension number.
-    @constraint:String {maxLength: 15, minLength: 1, pattern: re `^[0-9]{1,15}?$`}
-    string extension_number?;
-};
-
-# The invoice search parameters.
-public type search_data record {
-    # Filters the search by the email address.
-    @constraint:String {maxLength: 254}
-    string recipient_email?;
-    # Filters the search by the recipient first name.
-    @constraint:String {maxLength: 140}
-    string recipient_first_name?;
-    # Filters the search by the recipient last name.
-    @constraint:String {maxLength: 140}
-    string recipient_last_name?;
-    # Filters the search by the recipient business name.
-    @constraint:String {maxLength: 300}
-    string recipient_business_name?;
-    # Filters the search by the invoice number.
-    @constraint:String {maxLength: 25}
-    string invoice_number?;
-    # An array of status values.
-    @constraint:Array {maxLength: 5}
-    invoice_status[] status?;
-    # The reference data, such as a PO number.
+    string admin_area_3?;
+    AddressDetails address_details?;
+    # A city, town, or village. Smaller than `admin_area_level_1`
     @constraint:String {maxLength: 120}
-    string reference?;
-    # The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency.
-    currency_code currency_code?;
-    # A private bookkeeping memo for the user.
-    @constraint:String {maxLength: 500}
-    string memo?;
-    # The amount range.
-    amount_range total_amount_range?;
-    # The date range. Filters invoices by creation date, invoice date, due date, and payment date.
-    date_range invoice_date_range?;
-    # The date range. Filters invoices by creation date, invoice date, due date, and payment date.
-    date_range due_date_range?;
-    # The date and time range. Filters invoices by creation date, invoice date, due date, and payment date.
-    date_time_range payment_date_range?;
-    # The date and time range. Filters invoices by creation date, invoice date, due date, and payment date.
-    date_time_range creation_date_range?;
-    # Indicates whether to list merchant-archived invoices in the response. Value is:<ul><li><code>true</code>. Response lists only merchant-archived invoices.</li><li><code>false</code>. Response lists only unarchived invoices.</li><li><code>null</code>. Response lists all invoices.</li></ul>
-    boolean archived?;
-    # A CSV file of fields to return for the user, if available. Because the invoice object can be very large, field filtering is required. Valid collection fields are <code>items</code>, <code>payments</code>, <code>refunds</code>, <code>additional_recipients_info</code>, and <code>attachments</code>.
-    string[] fields?;
-};
-
-# The template display preference.
-public type template_display_preference record {
-    # Indicates whether to show or hide this field.
-    boolean hidden = false;
-};
-
-# The name of the party.
-public type name record {
-    # The prefix, or title, to the party's name.
-    @constraint:String {maxLength: 140}
-    string prefix?;
-    # When the party is a person, the party's given, or first, name.
-    @constraint:String {maxLength: 140}
-    string given_name?;
-    # When the party is a person, the party's surname or family name. Also known as the last name. Required when the party is a person. Use also to store multiple surnames including the matronymic, or mother's, surname.
-    @constraint:String {maxLength: 140}
-    string surname?;
-    # When the party is a person, the party's middle name. Use also to store multiple middle names including the patronymic, or father's, middle name.
-    @constraint:String {maxLength: 140}
-    string middle_name?;
-    # The suffix for the party's name.
-    @constraint:String {maxLength: 140}
-    string suffix?;
-    # DEPRECATED. The party's alternate name. Can be a business name, nickname, or any other name that cannot be split into first, last name. Required when the party is a business.
+    string admin_area_2?;
+    # The third line of the address, if needed. For example, a street complement for Brazil, direction text, such as `next to Walmart`, or a landmark in an Indian address
+    @constraint:String {maxLength: 100}
+    string address_line_3?;
+    # The second line of the address. For example, suite or apartment number
     @constraint:String {maxLength: 300}
-    string alternate_full_name?;
-    # When the party is a person, the party's full name.
-    @constraint:String {maxLength: 300}
-    string full_name?;
+    string address_line_2?;
+    # The neighborhood, ward, or district. Smaller than `admin_area_level_3` or `sub_locality`. Value is:<ul><li>The postal sorting code for Guernsey and many French territories, such as French Guiana.</li><li>The fine-grained administrative levels in China.</li></ul>
+    @constraint:String {maxLength: 100}
+    string admin_area_4?;
+    # The postal code, which is the zip code or equivalent. Typically required for countries with a postal code or an equivalent. See [postal code](https://en.wikipedia.org/wiki/Postal_code)
+    @constraint:String {maxLength: 60}
+    string postal_code?;
 };
 
-# The details of the invoice like notes, terms and conditions, memo, attachments.
-public type detail record {
+# The payment term. Payment can be due upon receipt, a specified date, or in a set number of days
+public type PaymentTermType "DUE_ON_RECEIPT"|"DUE_ON_DATE_SPECIFIED"|"NET_10"|"NET_15"|"NET_30"|"NET_45"|"NET_60"|"NET_90"|"NO_DUE_DATE";
+
+# The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
+@constraint:String {maxLength: 254, minLength: 3, pattern: re `^.+@[^"\-].+$`}
+public type EmailAddress string;
+
+# The template settings. Sets a template as the default template or edit template
+public type TemplateSettings record {
+    # The template item headers display preference
+    TemplateItemSetting[] template_item_settings?;
+    # The template subtotal headers display preference
+    TemplateSubtotalSetting[] template_subtotal_settings?;
+};
+
+# The phone type
+public type PhoneType "FAX"|"HOME"|"MOBILE"|"OTHER"|"PAGER";
+
+# The template-related details. Includes notes, terms and conditions, memo, and attachments
+public type TemplateDetail record {
+    *Detail;
+    *TemplateDetailAllOf2;
+};
+
+# The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years
+@constraint:String {maxLength: 10, minLength: 10, pattern: re `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$`}
+public type DateNoTime string;
+
+# The invoicing refund details. Includes the refund type, date, amount, and method
+public type Refunds record {
+    Money refund_amount?;
+    # An array of refund details for the invoice. Includes the refund type, date, amount, and method
+    @constraint:Array {maxLength: 100}
+    RefundDetail[] transactions?;
+};
+
+# The shipping fee for all items. Includes tax on shipping
+public type ShippingCost record {
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total
+    Tax tax?;
+};
+
+# The payment mode or method through which the invoicer can accept the payments
+public type PaymentMethod "BANK_TRANSFER"|"CASH"|"CHECK"|"CREDIT_CARD"|"DEBIT_CARD"|"PAYPAL"|"WIRE_TRANSFER"|"OTHER";
+
+# The billing and shipping information. Includes name, email, address, phone, and language
+public type RecipientInfo record {
+    ContactNameAddress shipping_info?;
+    BillingInfo billing_info?;
+};
+
+# The details of the invoice like notes, terms and conditions, memo, attachments
+public type Detail record {
     # The reference data. Includes a post office (PO) number.
     @constraint:String {maxLength: 120}
     string reference?;
-    # The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency.
-    currency_code currency_code;
+    # The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency
+    CurrencyCode currency_code;
     # A note to the invoice recipient. Also appears on the invoice notification email.
     @constraint:String {maxLength: 4000}
     string note?;
@@ -498,364 +453,386 @@ public type detail record {
     @constraint:String {maxLength: 500}
     string memo?;
     # An array of PayPal IDs for the files that are attached to an invoice.
-    file_reference[] attachments?;
+    FileReference[] attachments?;
 };
 
-# The contact information of the user. Includes name and address.
-public type contact_name_address record {
-    *business_name;
-    *ContactNameAddressAllOf2;
+# The discount as a percent or amount at invoice level. The invoice discount amount is subtracted from the item total
+public type Discount record {
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`
+    Percentage percent?;
 };
 
-# The status of the invoice.
-public type invoice_status "DRAFT"|"SENT"|"SCHEDULED"|"PAID"|"MARKED_AS_PAID"|"CANCELLED"|"REFUNDED"|"PARTIALLY_PAID"|"PARTIALLY_REFUNDED"|"MARKED_AS_REFUNDED"|"UNPAID"|"PAYMENT_PENDING";
-
-# The template with invoice details to load with all captured fields.
-public type template record {
-    # The ID of the template.
-    @constraint:String {maxLength: 30}
-    string id?;
-    # The template name.<blockquote><strong>Note:</strong> The template name must be unique.</blockquote>
-    @constraint:String {maxLength: 500, minLength: 1}
-    string name?;
-    # Indicates whether this template is the default template. A invoicer can have one default template.
-    boolean default_template?;
-    # The template details. Includes invoicer business information, invoice recipients, items, and configuration.
-    template_info template_info?;
-    # The template settings. Sets a template as the default template or edit template.
-    template_settings settings?;
-    # The unit of measure for the invoiced item.
-    unit_of_measure unit_of_measure?;
-    # Indicates whether this template is a invoicer-created custom template. The system generates non-custom templates.
-    boolean standard_template?;
-    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links).
-    link_description[] links?;
+# The reference to the payment detail
+public type PaymentReference record {
+    # The ID for the invoice payment
+    string payment_id?;
 };
 
-# The template item setting. Sets a template as the default template or edit template.
-public type template_item_setting record {
-    # The field names for the invoice line items in the template.
-    template_item_field field_name?;
-    # The template display preference.
-    template_display_preference display_preference?;
+# The request-related [HATEOAS link](/docs/api/reference/api-responses/#hateoas-links) information
+public type LinkDescription record {
+    # The HTTP method required to make the related call
+    "GET"|"POST"|"PUT"|"DELETE"|"HEAD"|"CONNECT"|"OPTIONS"|"PATCH" method?;
+    # The [link relation type](https://tools.ietf.org/html/rfc5988#section-4), which serves as an ID for a link that unambiguously describes the semantics of the link. See [Link Relations](https://www.iana.org/assignments/link-relations/link-relations.xhtml)
+    string rel;
+    # The complete target URL. To make the related call, combine the method with this [URI Template-formatted](https://tools.ietf.org/html/rfc6570) link. For pre-processing, include the `$`, `(`, and `)` characters. The `href` is the key HATEOAS component that links a completed call with a subsequent call
+    string href;
 };
 
-# The partial payment details. Includes the minimum amount that the invoicer expects from the payer.
-public type partial_payment record {
-    # Indicates whether the invoice allows a partial payment. If `false`, the invoice must be paid in full. If `true`, the invoice allows partial payments.<blockquote><strong>Note:</strong> This feature is not available for users in `India`, `Brazil`, or `Israel`.</blockquote>
-    boolean allow_partial_payment = false;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money minimum_amount_due?;
+# The audit metadata. Captures all invoicing actions on create, send, update, and cancel
+public type Metadata record {
+    *TemplateMetadata;
+    *MetadataAllOf2;
 };
 
-# The invoice configuration details. Includes partial payment, tip, and tax calculated after discount.
-public type configuration record {
-    *template_configuration;
-    *ConfigurationAllOf2;
+# The invoicer business information that appears on the invoice
+public type InvoicerInfo record {
+    *ContactNameAddress;
+    *InvoicerInfoAllOf2;
 };
 
-# The field names in the template for discount, shipping, and custom amounts.
-public type template_subtotal_field "DISCOUNT"|"SHIPPING"|"CUSTOM";
-
-# The payment term. Payment can be due upon receipt, a specified date, or in a set number of days.
-public type payment_term_type "DUE_ON_RECEIPT"|"DUE_ON_DATE_SPECIFIED"|"NET_10"|"NET_15"|"NET_30"|"NET_45"|"NET_60"|"NET_90"|"NO_DUE_DATE";
-
-# An array of payments registered against the invoice.
-public type payments record {
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money paid_amount?;
-    # An array of payment details for the invoice. The payment details of the invoice like payment type, method, date, discount and transaction type.
-    @constraint:Array {maxLength: 100}
-    payment_detail[] transactions?;
-};
-
-# The template-related details. Includes notes, terms and conditions, memo, and attachments.
-public type template_detail record {
-    *detail;
-    *TemplateDetailAllOf2;
-};
+# The frequency at which the invoice is sent:<ul><li>Multiple recipient. Sent to multiple recipients.</li><li>Batch. Sent in a batch.</li><li>Regular single. Sent one time to a single recipient.</li></ul>
+public type InvoiceCreationFlow "MULTIPLE_RECIPIENTS_GROUP"|"BATCH"|"REGULAR_SINGLE";
 
 public type InvoiceDetailAllOf2 record {
     # The invoice number. Default is the number that is auto-incremented number from the last number.
     @constraint:String {maxLength: 127}
     string invoice_number?;
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time invoice_date?;
-    # The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days.
-    invoice_payment_term payment_term?;
-    # The audit metadata. Captures all invoicing actions on create, send, update, and cancel.
-    metadata metadata?;
-};
-
-# The reference to the refund payment detail.
-public type refund_reference record {
-    # The ID of the refund of an invoice payment.
-    string refund_id?;
+    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years
+    DateNoTime invoice_date?;
+    # The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days
+    InvoicePaymentTerm payment_term?;
+    # The audit metadata. Captures all invoicing actions on create, send, update, and cancel
+    Metadata metadata?;
 };
 
 public type ContactNameAddressAllOf2 record {
-    # The name of the party.
-    name name?;
-    # The portable international postal address. Maps to [AddressValidationMetadata](https://github.com/googlei18n/libaddressinput/wiki/AddressValidationMetadata) and HTML 5.1 [Autofilling form controls: the autocomplete attribute](https://www.w3.org/TR/html51/sec-forms.html#autofilling-form-controls-the-autocomplete-attribute).
-    address_portable address?;
+    # The name of the party
+    Name name?;
+    # The portable international postal address. Maps to [AddressValidationMetadata](https://github.com/googlei18n/libaddressinput/wiki/AddressValidationMetadata) and HTML 5.1 [Autofilling form controls: the autocomplete attribute](https://www.w3.org/TR/html51/sec-forms.html#autofilling-form-controls-the-autocomplete-attribute)
+    AddressPortable address?;
+};
+
+# An array of merchant invoices. Includes the total invoices count and [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links) for navigation
+public type Invoices record {
+    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links)
+    LinkDescription[] links?;
+    # The total number of pages that are available for the search criteria. <blockquote><strong>Note:</strong> Clients MUST NOT assume that the value of total_pages is constant. The value MAY change from one request to the next</blockquote>
+    int total_pages?;
+    # The total number of invoices that match the search criteria.<blockquote><strong>Note:</strong> Clients MUST NOT assume that the value of <code>total_items</code> is constant. The value MAY change from one request to the next.</blockquote>
+    int total_items?;
+    # The list of invoices that match the search criteria
+    Invoice[] items?;
+};
+
+# The billing information of the invoice recipient. Includes name, address, email, phone, and language
+public type BillingInfo record {
+    *ContactNameAddress;
+    *BillingInfoAllOf2;
 };
 
 # Represents the Queries record for the operation: invoices.update
 public type InvoicesUpdateQueries record {
-    # Indicates whether to send the invoice update notification to the recipient.
+    # Indicates whether to send the invoice update notification to the recipient
     boolean send_to_recipient = true;
-    # Indicates whether to send the invoice update notification to the merchant.
+    # Indicates whether to send the invoice update notification to the merchant
     boolean send_to_invoicer = true;
 };
 
-# The date and time range. Filters invoices by creation date, invoice date, due date, and payment date.
-public type date_time_range record {
-    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time 'start;
-    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time end;
+# The discount. Can be an item- or invoice-level discount, or both. Can be applied as a percent or amount. If you provide both amount and percent, amount takes precedent
+public type AggregatedDiscount record {
+    Money item_discount?;
+    Discount invoice_discount?;
 };
 
-# The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency.
-@constraint:String {maxLength: 3, minLength: 3}
-public type currency_code string;
-
-# The invoicing refund details. Includes the refund type, date, amount, and method.
-public type refunds record {
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money refund_amount?;
-    # An array of refund details for the invoice. Includes the refund type, date, amount, and method.
+# The email or SMS notification to send to the invoicer or payer on sending an invoice
+public type Notification record {
+    # A note to the payer
+    @constraint:String {maxLength: 4000}
+    string note?;
+    # Indicates whether to send a copy of the email to the recipient
+    boolean send_to_recipient = true;
+    # The subject of the email that is sent as a notification to the recipient
+    @constraint:String {maxLength: 4000}
+    string subject?;
+    # Indicates whether to send a copy of the email to the merchant
+    boolean send_to_invoicer = false;
+    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
     @constraint:Array {maxLength: 100}
-    refund_detail[] transactions?;
+    EmailAddress[] additional_recipients?;
 };
 
-# The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-@constraint:String {maxLength: 10, minLength: 10, pattern: re `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$`}
-public type date_no_time string;
-
-# The phone details. Includes the phone number and type.
-public type phone_detail record {
-    *phone;
-    *PhoneDetailAllOf2;
-    phone_type phone_type;
+# The breakdown of the amount. Includes total item amount, total tax amount, custom amount, and shipping and discounts, if any
+public type AmountWithBreakdown record {
+    Money tax_total?;
+    # The shipping fee for all items. Includes tax on shipping
+    ShippingCost shipping?;
+    # The custom amount to apply to an invoice. If you include a label, you must include a custom amount
+    CustomAmount custom?;
+    # The discount. Can be an item- or invoice-level discount, or both. Can be applied as a percent or amount. If you provide both amount and percent, amount takes precedent
+    AggregatedDiscount discount?;
+    Money item_total?;
 };
 
-# The billing information of the invoice recipient. Includes name, address, email, phone, and language.
-public type billing_info record {
-    *contact_name_address;
-    *BillingInfoAllOf2;
-};
-
-# The frequency at which the invoice is sent:<ul><li>Multiple recipient. Sent to multiple recipients.</li><li>Batch. Sent in a batch.</li><li>Regular single. Sent one time to a single recipient.</li></ul>
-public type invoice_creation_flow "MULTIPLE_RECIPIENTS_GROUP"|"BATCH"|"REGULAR_SINGLE";
-
-# The invoice amount summary of item total, discount, tax total, and shipping.
-public type amount_summary_detail record {
-    # The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency.
-    currency_code currency_code?;
-    # The value, which might be:<ul><li>An integer for currencies like `JPY` that are not typically fractional.</li><li>A decimal fraction for currencies like `TND` that are subdivided into thousandths.</li></ul>For the required number of decimal places for a currency code, see [Currency Codes](/docs/integration/direct/rest/currency-codes/).
+# The currency and amount for a financial transaction, such as a balance or payment due
+public type Money record {
+    # The value, which might be:<ul><li>An integer for currencies like `JPY` that are not typically fractional.</li><li>A decimal fraction for currencies like `TND` that are subdivided into thousandths.</li></ul>For the required number of decimal places for a currency code, see [Currency Codes](/docs/integration/direct/rest/currency-codes/)
     @constraint:String {maxLength: 32, pattern: re `^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$`}
-    string value?;
-    # The breakdown of the amount. Includes total item amount, total tax amount, custom amount, and shipping and discounts, if any.
-    amount_with_breakdown breakdown?;
+    string value;
+    CurrencyCode currency_code;
 };
+
+# The date range. Filters invoices by creation date, invoice date, due date, and payment date
+public type DateRange record {
+    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years
+    DateNoTime 'start;
+    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years
+    DateNoTime end;
+};
+
+# The [language tag](https://tools.ietf.org/html/bcp47#section-2) for the language in which to localize the error-related strings, such as messages, issues, and suggested actions. The tag is made up of the [ISO 639-2 language code](https://www.loc.gov/standards/iso639-2/php/code_list.php), the optional [ISO-15924 script tag](https://www.unicode.org/iso15924/codelists.html), and the [ISO-3166 alpha-2 country code](/docs/integration/direct/rest/country-codes/)
+@constraint:String {maxLength: 10, minLength: 2, pattern: re `^[a-z]{2}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}))?$`}
+public type Language string;
+
+# The payment details of the invoice. Includes payment type, method, date, discount, and transaction type
+public type PaymentDetail record {
+    # A note associated with an external cash or check payment
+    @constraint:String {maxLength: 2000}
+    string note?;
+    ContactNameAddress shipping_info?;
+    # The currency and amount for a financial transaction, such as a balance or payment due
+    Money amount?;
+    # The payment mode or method through which the invoicer can accept the payments
+    PaymentMethod method;
+    # The ID for a PayPal payment transaction. Required for the `PAYPAL` payment type
+    @constraint:String {maxLength: 22}
+    string payment_id?;
+    # The payment type. Can be PayPal or an external payment. Includes cash or a check
+    PaymentType 'type?;
+    DateNoTime payment_date?;
+};
+
+# The phone number, in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en)
+public type Phone record {
+    # The country calling code (CC), in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en). The combined length of the CC and the national number must not be greater than 15 digits. The national number consists of a national destination code (NDC) and subscriber number (SN)
+    @constraint:String {maxLength: 3, minLength: 1, pattern: re `^[0-9]{1,3}?$`}
+    string country_code;
+    # The extension number
+    @constraint:String {maxLength: 15, minLength: 1, pattern: re `^[0-9]{1,15}?$`}
+    string extension_number?;
+    # The national number, in its canonical international [E.164 numbering plan format](https://www.itu.int/rec/T-REC-E.164/en). The combined length of the country calling code (CC) and the national number must not be greater than 15 digits. The national number consists of a national destination code (NDC) and subscriber number (SN)
+    @constraint:String {maxLength: 14, minLength: 1, pattern: re `^[0-9]{1,14}?$`}
+    string national_number;
+};
+
+# The field names in the template for discount, shipping, and custom amounts
+public type TemplateSubtotalField "DISCOUNT"|"SHIPPING"|"CUSTOM";
+
+# The amount range
+public type AmountRange record {
+    Money upper_amount;
+    Money lower_amount;
+};
+
+# The payment type. Can be PayPal or an external payment. Includes cash or a check
+public type PaymentType "PAYPAL"|"EXTERNAL";
 
 public type InvoicePaymentTermAllOf2 record {
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time due_date?;
+    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years
+    DateNoTime due_date?;
 };
 
-# The unit of measure for the invoiced item.
-public type unit_of_measure "QUANTITY"|"HOURS"|"AMOUNT";
-
-# The template settings. Sets a template as the default template or edit template.
-public type template_settings record {
-    # The template item headers display preference.
-    template_item_setting[] template_item_settings?;
-    # The template subtotal headers display preference.
-    template_subtotal_setting[] template_subtotal_settings?;
+# The date and time range. Filters invoices by creation date, invoice date, due date, and payment date
+public type DateTimeRange record {
+    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
+    DateTime 'start;
+    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
+    DateTime end;
 };
 
-# The portable international postal address. Maps to [AddressValidationMetadata](https://github.com/googlei18n/libaddressinput/wiki/AddressValidationMetadata) and HTML 5.1 [Autofilling form controls: the autocomplete attribute](https://www.w3.org/TR/html51/sec-forms.html#autofilling-form-controls-the-autocomplete-attribute).
-public type address_portable record {
-    # The first line of the address. For example, number or street. For example, `173 Drury Lane`. Required for data entry and compliance and risk checks. Must contain the full address.
-    @constraint:String {maxLength: 300}
-    string address_line_1?;
-    # The second line of the address. For example, suite or apartment number.
-    @constraint:String {maxLength: 300}
-    string address_line_2?;
-    # The third line of the address, if needed. For example, a street complement for Brazil, direction text, such as `next to Walmart`, or a landmark in an Indian address.
-    @constraint:String {maxLength: 100}
-    string address_line_3?;
-    # The neighborhood, ward, or district. Smaller than `admin_area_level_3` or `sub_locality`. Value is:<ul><li>The postal sorting code for Guernsey and many French territories, such as French Guiana.</li><li>The fine-grained administrative levels in China.</li></ul>
-    @constraint:String {maxLength: 100}
-    string admin_area_4?;
-    # A sub-locality, suburb, neighborhood, or district. Smaller than `admin_area_level_2`. Value is:<ul><li>Brazil. Suburb, bairro, or neighborhood.</li><li>India. Sub-locality or district. Street name information is not always available but a sub-locality or district can be a very small area.</li></ul>
-    @constraint:String {maxLength: 100}
-    string admin_area_3?;
-    # A city, town, or village. Smaller than `admin_area_level_1`.
-    @constraint:String {maxLength: 120}
-    string admin_area_2?;
-    # The highest level sub-division in a country, which is usually a province, state, or ISO-3166-2 subdivision. Format for postal delivery. For example, `CA` and not `California`. Value, by country, is:<ul><li>UK. A county.</li><li>US. A state.</li><li>Canada. A province.</li><li>Japan. A prefecture.</li><li>Switzerland. A kanton.</li></ul>
-    @constraint:String {maxLength: 300}
-    string admin_area_1?;
-    # The postal code, which is the zip code or equivalent. Typically required for countries with a postal code or an equivalent. See [postal code](https://en.wikipedia.org/wiki/Postal_code).
-    @constraint:String {maxLength: 60}
-    string postal_code?;
-    # The [two-character ISO 3166-1 code](/docs/integration/direct/rest/country-codes/) that identifies the country or region.<blockquote><strong>Note:</strong> The country code for Great Britain is <code>GB</code> and not <code>UK</code> as used in the top-level domain names for that country. Use the `C2` country code for China worldwide for comparable uncontrolled price (CUP) method, bank card, and cross-border transactions.</blockquote>
-    country_code country_code;
-    # The non-portable additional address details that are sometimes needed for compliance, risk, or other scenarios where fine-grain address information might be needed. Not portable with common third party and open source. Redundant with core fields.<br/>For example, `address_portable.address_line_1` is usually a combination of `address_details.street_number`, `street_name`, and `street_type`.
-    AddressDetails address_details?;
-};
+# The [two-character ISO 3166-1 code](/docs/integration/direct/rest/country-codes/) that identifies the country or region.<blockquote><strong>Note:</strong> The country code for Great Britain is <code>GB</code> and not <code>UK</code> as used in the top-level domain names for that country. Use the `C2` country code for China worldwide for comparable uncontrolled price (CUP) method, bank card, and cross-border transactions.</blockquote>
+@constraint:String {maxLength: 2, minLength: 2, pattern: re `^([A-Z]{2}|C2)$`}
+public type CountryCode string;
 
 public type PhoneDetailAllOf2 record {
-    # The phone type.
-    phone_type phone_type?;
+    # The phone type
+    PhoneType phone_type?;
 };
 
-# The billing and shipping information. Includes name, email, address, phone, and language.
-public type recipient_info record {
-    # The billing information of the invoice recipient. Includes name, address, email, phone, and language.
-    billing_info billing_info?;
-    # The contact information of the user. Includes name and address.
-    contact_name_address shipping_info?;
+# The phone details. Includes the phone number and type
+public type PhoneDetail record {
+    *Phone;
+    *PhoneDetailAllOf2;
+    PhoneType phone_type;
 };
 
-# The date range. Filters invoices by creation date, invoice date, due date, and payment date.
-public type date_range record {
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time 'start;
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time end;
+# The invoice amount summary of item total, discount, tax total, and shipping
+public type AmountSummaryDetail record {
+    # The breakdown of the amount. Includes total item amount, total tax amount, custom amount, and shipping and discounts, if any
+    AmountWithBreakdown breakdown?;
+    # The value, which might be:<ul><li>An integer for currencies like `JPY` that are not typically fractional.</li><li>A decimal fraction for currencies like `TND` that are subdivided into thousandths.</li></ul>For the required number of decimal places for a currency code, see [Currency Codes](/docs/integration/direct/rest/currency-codes/)
+    @constraint:String {maxLength: 32, pattern: re `^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$`}
+    string value?;
+    CurrencyCode currency_code?;
+};
+
+public type '202Response record {
+    LinkDescription[] links?;
 };
 
 # Represents the Queries record for the operation: invoices.search-invoices
 public type InvoicesSearchInvoicesQueries record {
-    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates.
+    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates
     @constraint:Int {minValue: 1, maxValue: 1000}
     int page = 1;
-    # Indicates whether the to show <code>total_pages</code> and <code>total_items</code> in the response.
+    # Indicates whether the to show <code>total_pages</code> and <code>total_items</code> in the response
     boolean total_required = false;
-    # The maximum number of templates to return in the response.
+    # The maximum number of templates to return in the response
     @constraint:Int {minValue: 1, maxValue: 100}
     int page_size = 20;
 };
 
-# The payment details of the invoice. Includes payment type, method, date, discount, and transaction type.
-public type payment_detail record {
-    # The payment type. Can be PayPal or an external payment. Includes cash or a check.
-    payment_type 'type?;
-    # The ID for a PayPal payment transaction. Required for the `PAYPAL` payment type.
-    @constraint:String {maxLength: 22}
-    string payment_id?;
-    # The stand-alone date, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). To represent special legal values, such as a date of birth, you should use dates with no associated time or time-zone data. Whenever possible, use the standard `date_time` type. This regular expression does not validate all dates. For example, February 31 is valid and nothing is known about leap years.
-    date_no_time payment_date?;
-    # The payment mode or method through which the invoicer can accept the payments.
-    payment_method method;
-    # A note associated with an external cash or check payment.
-    @constraint:String {maxLength: 2000}
-    string note?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-    # The contact information of the user. Includes name and address.
-    contact_name_address shipping_info?;
+# The reference to the refund payment detail
+public type RefundReference record {
+    # The ID of the refund of an invoice payment
+    string refund_id?;
 };
 
-# The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days.
-public type payment_term record {
-    # The payment term. Payment can be due upon receipt, a specified date, or in a set number of days.
-    payment_term_type term_type?;
+# The invoice search parameters
+public type SearchData record {
+    DateTimeRange payment_date_range?;
+    # Filters the search by the recipient last name
+    @constraint:String {maxLength: 140}
+    string recipient_last_name?;
+    # Filters the search by the recipient first name
+    @constraint:String {maxLength: 140}
+    string recipient_first_name?;
+    # Filters the search by the email address
+    @constraint:String {maxLength: 254}
+    string recipient_email?;
+    DateRange invoice_date_range?;
+    # A private bookkeeping memo for the user
+    @constraint:String {maxLength: 500}
+    string memo?;
+    CurrencyCode currency_code?;
+    # The reference data, such as a PO number
+    @constraint:String {maxLength: 120}
+    string reference?;
+    AmountRange total_amount_range?;
+    # Indicates whether to list merchant-archived invoices in the response. Value is:<ul><li><code>true</code>. Response lists only merchant-archived invoices.</li><li><code>false</code>. Response lists only unarchived invoices.</li><li><code>null</code>. Response lists all invoices.</li></ul>
+    boolean archived?;
+    DateRange due_date_range?;
+    DateTimeRange creation_date_range?;
+    # Filters the search by the recipient business name
+    @constraint:String {maxLength: 300}
+    string recipient_business_name?;
+    # A CSV file of fields to return for the user, if available. Because the invoice object can be very large, field filtering is required. Valid collection fields are <code>items</code>, <code>payments</code>, <code>refunds</code>, <code>additional_recipients_info</code>, and <code>attachments</code>
+    string[] fields?;
+    # Filters the search by the invoice number
+    @constraint:String {maxLength: 25}
+    string invoice_number?;
+    # An array of status values
+    @constraint:Array {maxLength: 5}
+    InvoiceStatus[] status?;
 };
 
-# The non-portable additional address details that are sometimes needed for compliance, risk, or other scenarios where fine-grain address information might be needed. Not portable with common third party and open source. Redundant with core fields.<br/>For example, `address_portable.address_line_1` is usually a combination of `address_details.street_number`, `street_name`, and `street_type`.
+# The template item setting. Sets a template as the default template or edit template
+public type TemplateItemSetting record {
+    TemplateDisplayPreference display_preference?;
+    TemplateItemField field_name?;
+};
+
+# The percentage, as a fixed-point, signed decimal number. For example, define a 19.99% interest rate as `19.99`
+@constraint:String {pattern: re `^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$`}
+public type Percentage string;
+
+# The non-portable additional address details that are sometimes needed for compliance, risk, or other scenarios where fine-grain address information might be needed. Not portable with common third party and open source. Redundant with core fields.<br/>For example, `address_portable.address_line_1` is usually a combination of `address_details.street_number`, `street_name`, and `street_type`
 public type AddressDetails record {
-    # The street number.
-    @constraint:String {maxLength: 100}
-    string street_number?;
-    # The street name. Just `Drury` in `Drury Lane`.
-    @constraint:String {maxLength: 100}
-    string street_name?;
-    # The street type. For example, avenue, boulevard, road, or expressway.
-    @constraint:String {maxLength: 100}
-    string street_type?;
-    # The delivery service. Post office box, bag number, or post office name.
-    @constraint:String {maxLength: 100}
-    string delivery_service?;
-    # A named locations that represents the premise. Usually a building name or number or collection of buildings with a common name or number. For example, <code>Craven House</code>.
+    # A named locations that represents the premise. Usually a building name or number or collection of buildings with a common name or number. For example, <code>Craven House</code>
     @constraint:String {maxLength: 100}
     string building_name?;
-    # The first-order entity below a named building or location that represents the sub-premise. Usually a single building within a collection of buildings with a common name. Can be a flat, story, floor, room, or apartment.
+    # The street number
+    @constraint:String {maxLength: 100}
+    string street_number?;
+    # The street type. For example, avenue, boulevard, road, or expressway
+    @constraint:String {maxLength: 100}
+    string street_type?;
+    # The first-order entity below a named building or location that represents the sub-premise. Usually a single building within a collection of buildings with a common name. Can be a flat, story, floor, room, or apartment
     @constraint:String {maxLength: 100}
     string sub_building?;
+    # The delivery service. Post office box, bag number, or post office name
+    @constraint:String {maxLength: 100}
+    string delivery_service?;
+    # The street name. Just `Drury` in `Drury Lane`
+    @constraint:String {maxLength: 100}
+    string street_name?;
 };
 
-# The shipping fee for all items. Includes tax on shipping.
-public type shipping_cost record {
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-    # The tax information. Includes the tax name and tax rate of invoice items. The tax amount is added to the item total.
-    tax tax?;
+# The template configuration details. Includes tax information, tip, and partial payment
+public type TemplateConfiguration record {
+    # Indicates whether the tax is calculated before or after a discount. If `false`, the tax is calculated before a discount. If `true`, the tax is calculated after a discount
+    boolean tax_calculated_after_discount = true;
+    PartialPayment partial_payment?;
+    # Indicates whether the invoice enables the customer to enter a tip amount during payment. If `true`, the invoice shows a tip amount field so that the customer can enter a tip amount. If `false`, the invoice does not show a tip amount field.<blockquote><strong>Note:</strong> This feature is not available for users in `Hong Kong`, `Taiwan`, `India`, or `Japan`.</blockquote>
+    boolean allow_tip = false;
+    # Indicates whether the unit price includes tax
+    boolean tax_inclusive = false;
 };
 
-# The amount range.
-public type amount_range record {
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money lower_amount;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money upper_amount;
+# The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days
+public type PaymentTerm record {
+    PaymentTermType term_type?;
 };
 
-# The audit metadata. Captures all template actions on create and update.
-public type template_metadata record {
-    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time create_time?;
-    # The email address of the account that created the resource.
-    string created_by?;
-    # The date and time, in [Internet date and time format](https://tools.ietf.org/html/rfc3339#section-5.6). Seconds are required while fractional seconds are optional.<blockquote><strong>Note:</strong> The regular expression provides guidance but does not reject all invalid dates.</blockquote>
-    date_time last_update_time?;
-    # The email address of the account that last edited the resource.
-    string last_updated_by?;
+# The field names for the invoice line items in the template
+public type TemplateItemField "ITEMS_QUANTITY"|"ITEMS_DESCRIPTION"|"ITEMS_DATE"|"ITEMS_DISCOUNT"|"ITEMS_TAX";
+
+# The template details. Includes invoicer business information, invoice recipients, items, and configuration
+public type TemplateInfo record {
+    # The invoice amount summary of item total, discount, tax total, and shipping
+    AmountSummaryDetail amount?;
+    Money due_amount?;
+    # The template configuration details. Includes tax information, tip, and partial payment
+    TemplateConfiguration configuration?;
+    # The invoicer business information that appears on the invoice
+    InvoicerInfo invoicer?;
+    # The template-related details. Includes notes, terms and conditions, memo, and attachments
+    TemplateDetail detail?;
+    # The billing and shipping information. Includes name, email, address, phone, and language
+    @constraint:Array {maxLength: 100}
+    RecipientInfo[] primary_recipients?;
+    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
+    @constraint:Array {maxLength: 100}
+    EmailAddress[] additional_recipients?;
+    # An array of invoice line-item information
+    @constraint:Array {maxLength: 100}
+    Item[] items?;
 };
 
-# The custom amount to apply to an invoice. If you include a label, you must include a custom amount.
-public type custom_amount record {
-    # The label to the custom amount of the invoice.
-    @constraint:String {maxLength: 50}
-    string label;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money amount?;
-};
-
-# The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
-@constraint:String {maxLength: 254, minLength: 3, pattern: re `^.+@[^"\-].+$`}
-public type email_address string;
-
-# The currency and amount for a financial transaction, such as a balance or payment due.
-public type money record {
-    # The [three-character ISO-4217 currency code](/docs/integration/direct/rest/currency-codes/) that identifies the currency.
-    currency_code currency_code;
-    # The value, which might be:<ul><li>An integer for currencies like `JPY` that are not typically fractional.</li><li>A decimal fraction for currencies like `TND` that are subdivided into thousandths.</li></ul>For the required number of decimal places for a currency code, see [Currency Codes](/docs/integration/direct/rest/currency-codes/).
-    @constraint:String {maxLength: 32, pattern: re `^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$`}
-    string value;
+# The template subtotal setting. Includes the field name and display preference
+public type TemplateSubtotalSetting record {
+    TemplateDisplayPreference display_preference?;
+    TemplateSubtotalField field_name?;
 };
 
 # Represents the Queries record for the operation: templates.list
 public type TemplatesListQueries record {
-    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates.
+    # The page number to be retrieved, for the list of templates. So, a combination of `page=1` and `page_size=20` returns the first 20 templates. A combination of `page=2` and `page_size=20` returns the next 20 templates
     @constraint:Int {minValue: 1, maxValue: 1000}
     int page = 1;
-    # The fields to return in the response. Value is `all` or `none`. To return only the template name, ID, and default attributes, specify `none`.
+    # The fields to return in the response. Value is `all` or `none`. To return only the template name, ID, and default attributes, specify `none`
     string fields = "all";
-    # The maximum number of templates to return in the response.
+    # The maximum number of templates to return in the response
     @constraint:Int {minValue: 1, maxValue: 100}
     int page_size = 20;
 };
 
 public type InvoicerInfoAllOf2 record {
     # The internationalized email address.<blockquote><strong>Note:</strong> Up to 64 characters are allowed before and 255 characters are allowed after the <code>@</code> sign. However, the generally accepted maximum length for an email address is 254 characters. The pattern verifies that an unquoted <code>@</code> sign exists.</blockquote>
-    email_address email_address?;
+    EmailAddress email_address?;
     # An array of invoicer's phone numbers. The invoicer can choose to hide the phone number on the invoice.
-    phone_detail[] phones?;
+    PhoneDetail[] phones?;
     # The invoicer's website.
     @constraint:String {maxLength: 2048}
     string website?;
@@ -870,61 +847,44 @@ public type InvoicerInfoAllOf2 record {
     string logo_url?;
 };
 
-# The invoice details which includes all information of the invoice like items, billing information.
-public type invoice record {
-    # The ID of the invoice.
-    @constraint:String {maxLength: 30}
+# The partial payment details. Includes the minimum amount that the invoicer expects from the payer
+public type PartialPayment record {
+    Money minimum_amount_due?;
+    # Indicates whether the invoice allows a partial payment. If `false`, the invoice must be paid in full. If `true`, the invoice allows partial payments.<blockquote><strong>Note:</strong> This feature is not available for users in `India`, `Brazil`, or `Israel`.</blockquote>
+    boolean allow_partial_payment = false;
+};
+
+# The file reference. Can be a file in PayPal MediaServ, PayPal DMS, or other custom store
+public type FileReference record {
+    # The [Internet Assigned Numbers Authority (IANA) media type of the file](https://www.iana.org/assignments/media-types/media-types.xhtml)
+    string content_type?;
+    DateTime create_time?;
+    # The size of the file, in bytes
+    @constraint:String {pattern: re `^[0-9]+$`}
+    string size?;
+    # The reference URL for the file
+    @constraint:String {maxLength: 2000, minLength: 1}
+    string reference_url?;
+    # The ID of the referenced file
+    @constraint:String {maxLength: 255, minLength: 1}
     string id?;
-    # The parent ID to an invoice that defines the group invoice to which the invoice is related.
-    @constraint:String {maxLength: 30}
-    string parent_id?;
-    # The status of the invoice.
-    invoice_status status?;
-    # The details of the invoice. Includes invoice number, date, payment terms, and audit metadata.
-    invoice_detail detail;
-    # The invoicer business information that appears on the invoice.
-    invoicer_info invoicer?;
-    # The billing and shipping information. Includes name, email, address, phone and language.
-    @constraint:Array {maxLength: 100}
-    recipient_info[] primary_recipients?;
-    # An array of one or more CC: emails to which notifications are sent. If you omit this parameter, a notification is sent to all CC: email addresses that are part of the invoice.<blockquote><strong>Note:</strong> Valid values are email addresses in the `additional_recipients` value associated with the invoice.</blockquote>
-    @constraint:Array {maxLength: 100}
-    email_address[] additional_recipients?;
-    # An array of invoice line item information.
-    @constraint:Array {maxLength: 100}
-    item[] items?;
-    # The invoice configuration details. Includes partial payment, tip, and tax calculated after discount.
-    configuration configuration?;
-    # The invoice amount summary of item total, discount, tax total, and shipping.
-    amount_summary_detail amount?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money due_amount?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money gratuity?;
-    # An array of payments registered against the invoice.
-    payments payments?;
-    # The invoicing refund details. Includes the refund type, date, amount, and method.
-    refunds refunds?;
-    # An array of request-related [HATEOAS links](/docs/api/reference/api-responses/#hateoas-links).
-    link_description[] links?;
 };
 
-# The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days.
-public type invoice_payment_term record {
-    *payment_term;
-    *InvoicePaymentTermAllOf2;
+# The status of the invoice
+public type InvoiceStatus "DRAFT"|"SENT"|"SCHEDULED"|"PAID"|"MARKED_AS_PAID"|"CANCELLED"|"REFUNDED"|"PARTIALLY_PAID"|"PARTIALLY_REFUNDED"|"MARKED_AS_REFUNDED"|"UNPAID"|"PAYMENT_PENDING";
+
+# The audit metadata. Captures all template actions on create and update
+public type TemplateMetadata record {
+    DateTime last_update_time?;
+    # The email address of the account that last edited the resource
+    string last_updated_by?;
+    DateTime create_time?;
+    # The email address of the account that created the resource
+    string created_by?;
 };
 
-# The breakdown of the amount. Includes total item amount, total tax amount, custom amount, and shipping and discounts, if any.
-public type amount_with_breakdown record {
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money item_total?;
-    # The discount. Can be an item- or invoice-level discount, or both. Can be applied as a percent or amount. If you provide both amount and percent, amount takes precedent.
-    aggregated_discount discount?;
-    # The currency and amount for a financial transaction, such as a balance or payment due.
-    money tax_total?;
-    # The shipping fee for all items. Includes tax on shipping.
-    shipping_cost shipping?;
-    # The custom amount to apply to an invoice. If you include a label, you must include a custom amount.
-    custom_amount custom?;
+# The template display preference
+public type TemplateDisplayPreference record {
+    # Indicates whether to show or hide this field
+    boolean hidden = false;
 };
