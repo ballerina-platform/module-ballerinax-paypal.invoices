@@ -30,7 +30,7 @@ service / on mockListener {
     }
 
     resource function post invoices(@http:Payload json payload) returns json {
-        json response = {
+        return  {
             id: "INV-MOCK-001",
             detail: {
                 invoice_number: "INV-MOCK-001",
@@ -39,7 +39,6 @@ service / on mockListener {
             },
             payload: payload
         };
-        return response;
     }
 
     resource function get invoices(http:Request req) returns json|http:Response {
