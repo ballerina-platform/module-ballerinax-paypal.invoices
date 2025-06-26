@@ -186,6 +186,12 @@ public type Name record {
     string alternate_full_name?;
 };
 
+# Represents the Headers record for the operation: invoicing.generate-next-invoice-number
+public type InvoicingGenerateNextInvoiceNumberHeaders record {
+    # The content type should be set to `application/json`.
+    "application/json" Content\-Type = "application/json";
+};
+
 public type TemplateDetailAllOf2 record {
     # The payment term of the invoice. Payment can be due upon receipt, a specified date, or in a set number of days
     PaymentTerm payment_term?;
@@ -323,6 +329,12 @@ public type RefundDetail record {
     @constraint:String {maxLength: 22}
     string refund_id?;
     DateNoTime refund_date?;
+};
+
+# Represents the Headers record for the operation: invoices.create
+public type InvoicesCreateHeaders record {
+    # Specifies the preferred response format.
+    string Prefer = "return=representation";
 };
 
 # The business name of the party

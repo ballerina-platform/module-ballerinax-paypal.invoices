@@ -49,12 +49,13 @@ public isolated client class Client {
     # + headers - Headers to be sent with the request 
     # + payload - The invoice details which includes all information of the invoice like items, billing information 
     # + return - A successful request returns the HTTP `201 Created` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function post invoices(Invoice payload, map<string|string[]> headers = {}) returns Invoice|error {
+    resource isolated function post invoices(Invoice payload, InvoicesCreateHeaders headers = {}) returns Invoice|error {
         string resourcePath = string `/invoices`;
+        map<string|string[]> httpHeaders = http:getHeaderMap(headers);
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
-        return self.clientEp->post(resourcePath, request, headers);
+        return self.clientEp->post(resourcePath, request, httpHeaders);
     }
 
     # Send invoice
@@ -167,10 +168,11 @@ public isolated client class Client {
     #
     # + headers - Headers to be sent with the request 
     # + return - A successful request returns the HTTP `200 OK` status code and a JSON response body that shows the next invoice number 
-    resource isolated function post generate\-next\-invoice\-number(map<string|string[]> headers = {}) returns InvoiceNumber|error {
+    resource isolated function post generate\-next\-invoice\-number(InvoicingGenerateNextInvoiceNumberHeaders headers = {}) returns InvoiceNumber|error {
         string resourcePath = string `/generate-next-invoice-number`;
+        map<string|string[]> httpHeaders = http:getHeaderMap(headers);
         http:Request request = new;
-        return self.clientEp->post(resourcePath, request, headers);
+        return self.clientEp->post(resourcePath, request, httpHeaders);
     }
 
     # Show invoice details
