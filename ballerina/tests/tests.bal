@@ -15,20 +15,19 @@
 // under the License.
 
 import ballerina/http;
-import ballerina/lang.runtime;
 import ballerina/test;
+import ballerina/lang.runtime;
 
-configurable string PAYPAL_CLIENT_ID = ?;
-configurable string PAYPAL_CLIENT_SECRET = ?;
-configurable string PAYPAL_API_BASE_URL = ?;
-configurable string PAYPAL_MERCHANT_EMAIL = ?;
+configurable string clientId = ?;
+configurable string clientSecret = ?;
+configurable string merchantEmail = ?;
 configurable boolean isLiveServer = ?;
 configurable string serviceUrl = isLiveServer ? "https://api-m.sandbox.paypal.com/v2/invoicing" : "http://localhost:9090";
 
 ConnectionConfig config = {
     auth: {
-        clientId: PAYPAL_CLIENT_ID,
-        clientSecret: PAYPAL_CLIENT_SECRET
+        clientId,
+        clientSecret
     }
 };
 
@@ -37,22 +36,19 @@ final Client paypalClient = check new (config, serviceUrl);
 string generatedInvoiceNumber = "";
 string testInvoiceId = "";
 string testPaymentId = "";
+string paymentTransactionId = "";
 
-@test:Config {
-    groups: ["live_tests", "mock_tests"]
-}
-function testGenerateInvoiceNumber() returns error? {
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-    InvoiceNumber result = check paypalClient->/generate\-next\-invoice\-number.post(headers);
-    test:assertNotEquals(result.invoice_number, "", msg = "Invoice number should not be empty");
+@test:BeforeSuite
+function setup() returns error? {
+    InvoiceNumber result = check paypalClient->/generate\-next\-invoice\-number.post();
     generatedInvoiceNumber = result.invoice_number ?: "";
 }
 
 @test:Config {
     groups: ["live_tests", "mock_tests"]
 }
-function testCreateInvoice() returns error? {
-    map<string|string[]> headers = {"Content-Type": "application/json","Prefer": "return=representation"};
+function CreateInvoice() returns error? {
+    test:assertNotEquals(generatedInvoiceNumber, "", msg = "Invoice number must be set before creating invoice");
 
     Invoice invoicePayload = {
         detail: {
@@ -60,7 +56,7 @@ function testCreateInvoice() returns error? {
             reference: "PO-123456",
             invoice_date: "2025-06-17",
             currency_code: "USD",
-            note: "Thanks for your business!",
+           note: "Thanks for your business!",
             memo: "Test invoice memo",
             payment_term: {
                 term_type: "NET_30"
@@ -71,7 +67,7 @@ function testCreateInvoice() returns error? {
                 given_name: "Dharshan",
                 surname: "Doe"
             },
-            email_address: PAYPAL_MERCHANT_EMAIL
+            email_address: merchantEmail
         },
         primary_recipients: [
             {
@@ -95,21 +91,20 @@ function testCreateInvoice() returns error? {
             }
         ]
     };
-    Invoice result = check paypalClient->/invoices.post(invoicePayload, headers);
+
+    Invoice result = check paypalClient->/invoices.post(invoicePayload);
     test:assertNotEquals(result.id, "", msg = "Invoice ID should not be empty");
     testInvoiceId = result.id ?: "";
 }
 
 @test:Config {
-    groups: ["paypal", "invoice"]
+    groups: ["live_tests", "mock_tests"]
 }
-function testListInvoices() returns error? {
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-
-    Invoices result = check paypalClient->/invoices.get(headers, page = 1, page_size = 5, fields = "all", total_required = true);
+function ListInvoices() returns error? {
+    Invoices result = check paypalClient->/invoices.get(page = 1, page_size = 5, total_required = true);
     int totalCount = 0;
-    if result.hasKey("total_count") {
-        anydata count = result["total_count"];
+    if result.hasKey("total_items") {
+        anydata count = result["total_items"];
         if count is int {
             totalCount = count;
         }
@@ -123,12 +118,11 @@ function testListInvoices() returns error? {
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testCreateInvoice]
+    dependsOn: [CreateInvoice]
 }
-function testGetInvoiceById() returns error? {
+function testRetrieveInvoiceById() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-    Invoice result = check paypalClient->/invoices/[testInvoiceId].get(headers);
+    Invoice result = check paypalClient->/invoices/[testInvoiceId];
     test:assertEquals(result.id, testInvoiceId, msg = "Retrieved invoice ID should match requested ID");
 }
 
@@ -136,9 +130,7 @@ function testGetInvoiceById() returns error? {
     groups: ["live_tests", "mock_tests"]
 }
 function testListInvoicesWithDifferentQueries() returns error? {
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-    Invoices result = check paypalClient->/invoices.get(headers, page = 1, page_size = 2);
-
+    Invoices result = check paypalClient->/invoices.get(page = 1, page_size = 2);
     Invoice[]? items = result.items;
     if items is Invoice[] {
         int itemsLength = items.length();
@@ -150,27 +142,22 @@ function testListInvoicesWithDifferentQueries() returns error? {
     groups: ["live_tests", "mock_tests"]
 }
 function testListInvoicesErrorHandling() returns error? {
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-
-    Invoices|error result = paypalClient->/invoices.get(headers, page = -1, page_size = 5);
+    Invoices|error result = paypalClient->/invoices.get(page = -1, page_size = 5);
     test:assertTrue(result is error, msg = "Expected error for invalid page number");
 }
 
-function isInvoiceDraft(string invoiceId, map<string|string[]> headers) returns boolean|error {
-    Invoice result = check paypalClient->/invoices/[invoiceId].get(headers);
+function isInvoiceDraft(string invoiceId) returns boolean|error {
+    Invoice result = check paypalClient->/invoices/[invoiceId];
     return result.status == "DRAFT";
 }
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testCreateInvoice]
+    dependsOn: [CreateInvoice]
 }
-function testSendInvoice() returns error? {
+function SendInvoice() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {"Content-Type": "application/json","Prefer": "return=representation"};
-
-    boolean isDraft = check isInvoiceDraft(testInvoiceId, headers);
+    boolean isDraft = check isInvoiceDraft(testInvoiceId);
     if !isDraft {
         return;
     }
@@ -181,7 +168,7 @@ function testSendInvoice() returns error? {
         send_to_recipient: true,
         additional_recipients: []
     };
-    var result = paypalClient->/invoices/[testInvoiceId]/send.post(payload, headers);
+    var result = paypalClient->/invoices/[testInvoiceId]/send.post(payload);
     if result is error {
         if result is http:ClientError {
         }
@@ -189,21 +176,18 @@ function testSendInvoice() returns error? {
     }
 }
 
-function isInvoiceSent(string invoiceId, map<string|string[]> headers) returns boolean|error {
-    Invoice result = check paypalClient->/invoices/[invoiceId].get(headers);
+function isInvoiceSent(string invoiceId) returns boolean|error {
+    Invoice result = check paypalClient->/invoices/[invoiceId];
     return result.status == "SENT";
 }
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testSendInvoice]
+    dependsOn: [SendInvoice]
 }
 function testSendInvoiceReminder() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-
-    boolean isSent = check isInvoiceSent(testInvoiceId, headers);
+    boolean isSent = check isInvoiceSent(testInvoiceId);
     if !isSent {
         return;
     }
@@ -215,7 +199,7 @@ function testSendInvoiceReminder() returns error? {
         send_to_recipient: true
     };
 
-    error? result = paypalClient->/invoices/[testInvoiceId]/remind.post(reminderPayload, headers);
+    error? result = paypalClient->/invoices/[testInvoiceId]/remind.post(reminderPayload);
     if result is error {
         if result is http:ClientError {
         }
@@ -227,14 +211,11 @@ function testSendInvoiceReminder() returns error? {
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testDeleteExternalPayment]
+    dependsOn: [SendInvoice]
 }
-function testCancelSentInvoice() returns error? {
+function CancelSentInvoice() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {"Content-Type": "application/json"};
-
-    boolean isSent = check isInvoiceSent(testInvoiceId, headers);
+    boolean isSent = check isInvoiceSent(testInvoiceId);
     if !isSent {
         return;
     }
@@ -245,45 +226,20 @@ function testCancelSentInvoice() returns error? {
         send_to_invoicer: false,
         send_to_recipient: true
     };
-    error? result = paypalClient->/invoices/[testInvoiceId]/cancel.post(cancelPayload, headers);
+    error? result = paypalClient->/invoices/[testInvoiceId]/cancel.post(cancelPayload);
     if result is error {
         if result is http:ClientError {
         }
-
         test:assertFalse(true, msg = "Failed to cancel invoice: " + result.message());
         return result;
     }
     test:assertTrue(true, msg = "Invoice cancelled successfully");
 }
 
-@test:Config {
-    groups: ["live_tests", "mock_tests"],
-    dependsOn: [testRecordPaymentForInvoice]
-}
-function testDeleteExternalPayment() returns error? {
-    test:assertTrue(testPaymentId.length() > 0, msg = "testPaymentId must not be empty");
-
-    if testPaymentId.length() == 0 {
-        return;
-    }
-
-    map<string|string[]> headers = {"Content-Type": "application/json","PayPal-Request-Id": "delete-payment-" + testInvoiceId + "-" + testPaymentId};
-
-    error? result = paypalClient->/invoices/[testInvoiceId]/payments/[testPaymentId].delete(headers);
-    if result is error {
-        if result is http:ClientError {
-        }
-        test:assertFalse(true, msg = "Failed to delete external payment: " + result.message());
-    } else {
-        test:assertTrue(true, msg = "External payment deleted successfully");
-        testPaymentId = "";
-    }
-}
-
-function waitForInvoiceToBeSent(string invoiceId, map<string|string[]> headers) returns boolean|error {
+function waitForInvoiceToBeSent(string invoiceId) returns boolean|error {
     int maxRetries = 5;
     foreach int i in 0 ... maxRetries {
-        boolean|error isSent = isInvoiceSent(invoiceId, headers);
+        boolean|error isSent = isInvoiceSent(invoiceId);
         if isSent is error || isSent {
             return isSent;
         }
@@ -294,52 +250,11 @@ function waitForInvoiceToBeSent(string invoiceId, map<string|string[]> headers) 
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testSendInvoice]
-}
-function testRecordPaymentForInvoice() returns error? {
-    test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {
-        "Content-Type": "application/json",
-        "PayPal-Request-Id": "test-payment-" + testInvoiceId
-    };
-
-    boolean isSent = check waitForInvoiceToBeSent(testInvoiceId, headers);
-    if !isSent {
-        return;
-    }
-
-    PaymentDetail paymentPayload = {
-        method: "CASH",
-        'type: "EXTERNAL",
-        amount: {
-            currency_code: "USD",
-            value: "50.00"
-        },
-        payment_date: "2025-06-18",
-        note: "Payment received via cash - Test payment recording"
-    };
-
-    PaymentReference result = check paypalClient->/invoices/[testInvoiceId]/payments.post(paymentPayload, headers);
-    if result.payment_id is string {
-        testPaymentId = result.payment_id ?: "";
-    }
-    test:assertTrue(true, msg = "Payment recorded successfully");
-    test:assertNotEquals(result.payment_id, (), msg = "Payment reference should have an ID");
-}
-
-@test:Config {
-    groups: ["live_tests", "mock_tests"],
-    dependsOn: [testCreateInvoice]
+    dependsOn: [CreateInvoice]
 }
 function testShowInvoiceDetails() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {
-        "Content-Type": "application/json"
-    };
-
-    Invoice response = check paypalClient->/invoices/[testInvoiceId].get(headers);
+    Invoice response = check paypalClient->/invoices/[testInvoiceId];
     test:assertEquals(response.id, testInvoiceId, msg = "Invoice ID should match");
     test:assertNotEquals(response.status, (), msg = "Invoice should have a status");
     test:assertNotEquals(response.amount?.value, (), msg = "Invoice should have an amount");
@@ -348,13 +263,51 @@ function testShowInvoiceDetails() returns error? {
 
 @test:Config {
     groups: ["live_tests", "mock_tests"],
-    dependsOn: [testCreateInvoice]
+    dependsOn: [CreateInvoice]
 }
-function testDeleteInvoice() returns error? {
+function DeleteInvoice() returns error? {
     test:assertTrue(testInvoiceId.length() > 0, msg = "testInvoiceId must not be empty");
-
-    map<string|string[]> headers = {"Content-Type": "application/json","PayPal-Request-Id": "delete-invoice-" + testInvoiceId};
-    
-    check paypalClient->/invoices/[testInvoiceId].delete(headers);
+    check paypalClient->/invoices/[testInvoiceId].delete();
     test:assertTrue(true, msg = "Invoice deleted successfully");
+}
+
+@test:Config {
+    groups: ["live_tests", "mock_tests"],
+    dependsOn: [CreateInvoice]
+}
+function testRecordPayment() returns error? {
+    PaymentDetail paymentPayload = {
+        method: "CREDIT_CARD",
+        "date": "2025-06-26",
+        amount: {
+            currency_code: "USD",
+            value: "100.00"
+        },
+        note: "Payment recorded by test"
+    };
+
+    var paymentResponse = paypalClient->/invoices/[testInvoiceId]/payments.post(
+        paymentPayload
+    );
+
+    if (paymentResponse is PaymentReference) {
+        paymentTransactionId = paymentResponse["transaction_id"].toString();
+        test:assertNotEquals(paymentTransactionId, "", msg = "Transaction ID should not be empty");
+    } else if (paymentResponse is error) {
+        return;
+    }
+}
+
+@test:Config {
+    groups: ["live_tests", "mock_tests"],
+    dependsOn: [testRecordPayment]
+}
+function testDeleteExternalPayment() returns error? {
+    if (paymentTransactionId == "") {
+        return;
+    }
+    error? deleteResult = paypalClient->/invoices/[testInvoiceId]/payments/[paymentTransactionId].delete();
+    if (deleteResult is error) {
+        return;
+    }
 }

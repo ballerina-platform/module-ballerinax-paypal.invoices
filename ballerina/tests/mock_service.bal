@@ -1,4 +1,3 @@
-
 // Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -25,12 +24,12 @@ map<string> paymentRecords = {};
 
 service / on mockListener {
 
-    resource function post generate\-next\-invoice\-number() returns json {
-        return {"invoice_number": "INV-MOCK-001"};
+    resource function post generate\-next\-invoice\-number() returns InvoiceNumber {
+        return {invoice_number: "INV-MOCK-001"};
     }
 
     resource function post invoices(@http:Payload json payload) returns json {
-        return  {
+        return {
             id: "INV-MOCK-001",
             detail: {
                 invoice_number: "INV-MOCK-001",
@@ -40,7 +39,7 @@ service / on mockListener {
             payload: payload
         };
     }
-
+    
     resource function get invoices(http:Request req) returns json|http:Response {
         var queryParams = req.getQueryParams();
         string|string[]? pageParam = queryParams.get("page");
@@ -184,10 +183,12 @@ service / on mockListener {
     }
 
     resource function post invoices/[string invoiceId]/payments(@http:Payload json payload) returns json {
-        string paymentId = "PAY-MOCK-" + invoiceId + "-001";
-        paymentRecords[invoiceId] = paymentId;
+        string transactionId = "TRANSACTION-MOCK-" + invoiceId + "-001";
+        paymentRecords[invoiceId] = transactionId;
+
         return {
-            payment_id: paymentId,
+            payment_id: "PAY-MOCK-" + invoiceId + "-001",
+            transaction_id: transactionId,
             status: "RECORD_SUCCESS",
             detail: {
                 message: "Payment recorded successfully"
