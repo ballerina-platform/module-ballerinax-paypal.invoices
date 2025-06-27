@@ -16,10 +16,10 @@
 
 import ballerina/test;
 
-configurable string clientId = ?;
-configurable string clientSecret = ?;
-configurable boolean isLiveServer = ?;
-configurable string merchantEmail = ?;
+configurable string clientId = "clientId";
+configurable string clientSecret = "clientSecret";
+configurable boolean isLiveServer = false;
+configurable string merchantEmail = "sample@example.com";
 
 configurable string serviceUrl = isLiveServer ?
     "https://api-m.sandbox.paypal.com/v2/invoicing" :

@@ -19,129 +19,125 @@ import ballerina/time;
 
 listener http:Listener mockListener = new (9090);
 
-map<Invoice> invoices = {};
 map<string> invoiceStates = {};
 map<string> mapPayments = {};
 
-function initializeDefaultInvoices() {
-    Invoice defaultInvoice1 = {
-        id: "INV-DEFAULT-001",
-        status: "DRAFT",
-        detail: {
-            invoice_number: "INV-DEFAULT-001",
-            currency_code: "USD",
-            note: "Default test invoice 1"
-        },
-        primary_recipients: [
-            {
-                billing_info: {
-                    email_address: "test1@example.com"
-                }
+final Invoice defaultInvoice1 = {
+    id: "INV-DEFAULT-001",
+    status: "DRAFT",
+    detail: {
+        invoice_number: "INV-DEFAULT-001",
+        currency_code: "USD",
+        note: "Default test invoice 1"
+    },
+    primary_recipients: [
+        {
+            billing_info: {
+                email_address: "test1@example.com"
             }
-        ],
-        items: [
-            {
-                id: "ITEM-001",
-                name: "Test Item 1",
-                quantity: "1",
-                unit_amount: {
-                    currency_code: "USD",
-                    value: "50.00"
-                }
+        }
+    ],
+    items: [
+        {
+            id: "ITEM-001",
+            name: "Test Item 1",
+            quantity: "1",
+            unit_amount: {
+                currency_code: "USD",
+                value: "50.00"
             }
-        ],
-        amount: {
-            currency_code: "USD",
-            value: "50.00",
-            breakdown: {
-                item_total: {
-                    currency_code: "USD",
-                    value: "50.00"
-                },
-                discount: {
-                    invoice_discount: {
-                        amount: {
-                            currency_code: "USD",
-                            value: "0.00"
-                        }
-                    },
-                    item_discount: {
+        }
+    ],
+    amount: {
+        currency_code: "USD",
+        value: "50.00",
+        breakdown: {
+            item_total: {
+                currency_code: "USD",
+                value: "50.00"
+            },
+            discount: {
+                invoice_discount: {
+                    amount: {
                         currency_code: "USD",
                         value: "0.00"
                     }
                 },
-                tax_total: {
+                item_discount: {
                     currency_code: "USD",
                     value: "0.00"
                 }
+            },
+            tax_total: {
+                currency_code: "USD",
+                value: "0.00"
             }
         }
-    };
+    }
+};
 
-    Invoice defaultInvoice2 = {
-        id: "INV-DEFAULT-002",
-        status: "SENT",
-        detail: {
-            invoice_number: "INV-DEFAULT-002",
-            currency_code: "USD",
-            note: "Default test invoice 2"
-        },
-        primary_recipients: [
-            {
-                billing_info: {
-                    email_address: "test2@example.com"
-                }
+final Invoice defaultInvoice2 = {
+    id: "INV-DEFAULT-002",
+    status: "SENT",
+    detail: {
+        invoice_number: "INV-DEFAULT-002",
+        currency_code: "USD",
+        note: "Default test invoice 2"
+    },
+    primary_recipients: [
+        {
+            billing_info: {
+                email_address: "test2@example.com"
             }
-        ],
-        items: [
-            {
-                id: "ITEM-002",
-                name: "Test Item 2",
-                quantity: "2",
-                unit_amount: {
-                    currency_code: "USD",
-                    value: "75.00"
-                }
+        }
+    ],
+    items: [
+        {
+            id: "ITEM-002",
+            name: "Test Item 2",
+            quantity: "2",
+            unit_amount: {
+                currency_code: "USD",
+                value: "75.00"
             }
-        ],
-        amount: {
-            currency_code: "USD",
-            value: "150.00",
-            breakdown: {
-                item_total: {
-                    currency_code: "USD",
-                    value: "150.00"
-                },
-                discount: {
-                    invoice_discount: {
-                        amount: {
-                            currency_code: "USD",
-                            value: "0.00"
-                        }
-                    },
-                    item_discount: {
+        }
+    ],
+    amount: {
+        currency_code: "USD",
+        value: "150.00",
+        breakdown: {
+            item_total: {
+                currency_code: "USD",
+                value: "150.00"
+            },
+            discount: {
+                invoice_discount: {
+                    amount: {
                         currency_code: "USD",
                         value: "0.00"
                     }
                 },
-                tax_total: {
+                item_discount: {
                     currency_code: "USD",
                     value: "0.00"
                 }
+            },
+            tax_total: {
+                currency_code: "USD",
+                value: "0.00"
             }
         }
-    };
+    }
+};
 
-    invoices["INV-DEFAULT-001"] = defaultInvoice1;
-    invoices["INV-DEFAULT-002"] = defaultInvoice2;
-}
+final map<Invoice> defaultInvoices = {
+    "INV-DEFAULT-001": defaultInvoice1,
+    "INV-DEFAULT-002": defaultInvoice2
+};
+
+map<Invoice> invoices = defaultInvoices.clone();
 
 service / on mockListener {
-
-    function init() {
-        initializeDefaultInvoices();
-    }
-
     resource function post generate\-next\-invoice\-number() returns InvoiceNumber {
         return {invoice_number: "INV-MOCK-001"};
     }
@@ -243,7 +239,7 @@ service / on mockListener {
     }
 
     resource function get invoices(int page, int page_size, boolean total_required) returns Invoices|http:Response {
-        if (page < 1) {
+        if page < 1 {
             json errorResponse = {
                 "error": true,
                 "message": "Invalid page number",
@@ -259,7 +255,7 @@ service / on mockListener {
         int startIndex = (page - 1) * page_size;
         int endIndex = startIndex + page_size;
 
-        if (startIndex >= allInvoices.length()) {
+        if startIndex >= allInvoices.length() {
             return {
                 "total_items": total_required ? allInvoices.length() : (),
                 items: []
