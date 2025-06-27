@@ -33,6 +33,12 @@ public type OAuth2ClientCredentialsGrantConfig record {|
     string tokenUrl = "https://api-m.sandbox.paypal.com/v1/oauth2/token";
 |};
 
+# Represents the Headers record for the operation: invoices.update
+public type InvoicesUpdateHeaders record {
+    # Specifies the preferred response format.
+    string Prefer = "return=representation";
+};
+
 # The invoice details which includes all information of the invoice like items, billing information
 public type Invoice record {
     # The invoice amount summary of item total, discount, tax total, and shipping

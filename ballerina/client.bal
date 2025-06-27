@@ -192,13 +192,14 @@ public isolated client class Client {
     # + queries - Queries to be sent with the request 
     # + payload - A representation of changes to make in the invoice 
     # + return - A successful request returns the HTTP `200 OK` status code. A JSON response body that shows invoice details is returned if you set <code>prefer=return=representation</code> 
-    resource isolated function put invoices/[string invoiceId](Invoice payload, map<string|string[]> headers = {}, *InvoicesUpdateQueries queries) returns Invoice|error {
+    resource isolated function put invoices/[string invoiceId](Invoice payload, InvoicesUpdateHeaders headers = {}, *InvoicesUpdateQueries queries) returns Invoice|error {
         string resourcePath = string `/invoices/${getEncodedUri(invoiceId)}`;
         resourcePath = resourcePath + check getPathForQueryParam(queries);
+        map<string|string[]> httpHeaders = http:getHeaderMap(headers);
         http:Request request = new;
         json jsonBody = jsondata:toJson(payload);
         request.setPayload(jsonBody, "application/json");
-        return self.clientEp->put(resourcePath, request, headers);
+        return self.clientEp->put(resourcePath, request, httpHeaders);
     }
 
     # Delete invoice

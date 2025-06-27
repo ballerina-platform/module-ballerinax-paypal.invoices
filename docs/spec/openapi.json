@@ -1124,6 +1124,9 @@
           },
           {
             "$ref": "#/components/parameters/send_to_invoicer"
+          },
+          {
+            "$ref": "#/components/parameters/prefer"
           }
         ],
         "requestBody": {
