@@ -1,6 +1,6 @@
 _Author_:  @DharshanSR \
 _Created_: 13/06/2025 \
-_Updated_: 26/06/2025 \
+_Updated_: 27/06/2025 \
 _Edition_: Swan Lake
 
 # Sanitation for OpenAPI specification
@@ -260,6 +260,64 @@ Changed `x-ballerina-name` extension property to `x-ballerina-name-ignore` to ex
   }
 }
 ```
+
+**PUT /invoice/{invoiceId}**
+
+**Location**: `paths.invoice.{invoiceId}.put.parameters`
+
+**Original**:
+
+```json
+"paths": {
+  "/invoice": {
+    "{invoiceId}": {
+      "put": {
+        "parameters": {
+          .....
+        }
+      }
+    }
+  }
+}
+```
+
+**Sanitized**:
+
+```json
+"paths": {
+  "/invoice": {
+    "{invoiceId}": {
+      "put": {
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/prefer"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+```diff
+"paths": {
+  "/invoice": {
+    "{invoiceId}": {
+      "put": {
+        "parameters": [
+-          ....
+        ]
+        "parameters": [
++          {
++            "$ref": "#/components/parameters/prefer"
++          }
+        ]
+      }
+    }
+  }
+}
+```
+
 ### Why `Prefer` and `Content-Type` Were Added
 
 The PayPal Invoicing API requires certain headers that were missing in the original OpenAPI spec:
