@@ -19,197 +19,272 @@ import ballerina/time;
 
 listener http:Listener mockListener = new (9090);
 
+map<Invoice> invoices = {};
 map<string> invoiceStates = {};
-map<string> paymentRecords = {};
+map<string> mapPayments = {};
+
+function initializeDefaultInvoices() {
+    Invoice defaultInvoice1 = {
+        id: "INV-DEFAULT-001",
+        status: "DRAFT",
+        detail: {
+            invoice_number: "INV-DEFAULT-001",
+            currency_code: "USD",
+            note: "Default test invoice 1"
+        },
+        primary_recipients: [
+            {
+                billing_info: {
+                    email_address: "test1@example.com"
+                }
+            }
+        ],
+        items: [
+            {
+                id: "ITEM-001",
+                name: "Test Item 1",
+                quantity: "1",
+                unit_amount: {
+                    currency_code: "USD",
+                    value: "50.00"
+                }
+            }
+        ],
+        amount: {
+            currency_code: "USD",
+            value: "50.00",
+            breakdown: {
+                item_total: {
+                    currency_code: "USD",
+                    value: "50.00"
+                },
+                discount: {
+                    invoice_discount: {
+                        amount: {
+                            currency_code: "USD",
+                            value: "0.00"
+                        }
+                    },
+                    item_discount: {
+                        currency_code: "USD",
+                        value: "0.00"
+                    }
+                },
+                tax_total: {
+                    currency_code: "USD",
+                    value: "0.00"
+                }
+            }
+        }
+    };
+
+    Invoice defaultInvoice2 = {
+        id: "INV-DEFAULT-002",
+        status: "SENT",
+        detail: {
+            invoice_number: "INV-DEFAULT-002",
+            currency_code: "USD",
+            note: "Default test invoice 2"
+        },
+        primary_recipients: [
+            {
+                billing_info: {
+                    email_address: "test2@example.com"
+                }
+            }
+        ],
+        items: [
+            {
+                id: "ITEM-002",
+                name: "Test Item 2",
+                quantity: "2",
+                unit_amount: {
+                    currency_code: "USD",
+                    value: "75.00"
+                }
+            }
+        ],
+        amount: {
+            currency_code: "USD",
+            value: "150.00",
+            breakdown: {
+                item_total: {
+                    currency_code: "USD",
+                    value: "150.00"
+                },
+                discount: {
+                    invoice_discount: {
+                        amount: {
+                            currency_code: "USD",
+                            value: "0.00"
+                        }
+                    },
+                    item_discount: {
+                        currency_code: "USD",
+                        value: "0.00"
+                    }
+                },
+                tax_total: {
+                    currency_code: "USD",
+                    value: "0.00"
+                }
+            }
+        }
+    };
+
+    invoices["INV-DEFAULT-001"] = defaultInvoice1;
+    invoices["INV-DEFAULT-002"] = defaultInvoice2;
+}
 
 service / on mockListener {
+
+    function init() {
+        initializeDefaultInvoices();
+    }
 
     resource function post generate\-next\-invoice\-number() returns InvoiceNumber {
         return {invoice_number: "INV-MOCK-001"};
     }
 
-    resource function post invoices(@http:Payload json payload) returns json {
-        return {
-            id: "INV-MOCK-001",
-            detail: {
-                invoice_number: "INV-MOCK-001",
-                currency_code: "USD",
-                note: "Mock Invoice"
-            },
-            payload: payload
-        };
-    }
-    
-    resource function get invoices(http:Request req) returns json|http:Response {
-        var queryParams = req.getQueryParams();
-        string|string[]? pageParam = queryParams.get("page");
-        string? pageStr = pageParam is string ? pageParam : (pageParam is string[] ? pageParam[0] : ());
-
-        if pageStr is string {
-            int|error pageNum = int:fromString(pageStr);
-            if pageNum is int {
-                if pageNum <= 0 {
-                    json errorResponse = {
-                        name: "INVALID_REQUEST",
-                        message: "Page number must be greater than 0."
-                    };
-                    http:Response res = new;
-                    res.statusCode = 400;
-                    res.setJsonPayload(errorResponse);
-                    return res;
-                }
-            } else {
-                json errorResponse = {
-                    name: "INVALID_REQUEST",
-                    message: "Invalid page number format."
-                };
-                http:Response res = new;
-                res.statusCode = 400;
-                res.setJsonPayload(errorResponse);
-                return res;
-            }
-        }
-
-        return {
-            total_count: 2,
-            items: [
-                {
-                    id: "INV-MOCK-001",
-                    status: "DRAFT",
-                    detail: {
-                        invoice_number: "INV-MOCK-001",
-                        currency_code: "USD",
-                        note: "Mock Invoice 1"
-                    }
-                },
-                {
-                    id: "INV-MOCK-002",
-                    status: "SENT",
-                    detail: {
-                        invoice_number: "INV-MOCK-002",
-                        currency_code: "USD",
-                        note: "Mock Invoice 2"
-                    }
-                }
-            ]
-        };
-    }
-
-    resource function get invoices/[string invoiceId]() returns json {
-        return {
+    resource function post invoices(Invoice payload) returns Invoice {
+        string invoiceId = "INV2-MOCK-12345";
+        Invoice createdInvoice = {
             id: invoiceId,
-            status: invoiceStates[invoiceId] ?: "DRAFT",
-            detail: {
-                invoice_number: invoiceId,
-                currency_code: "USD",
-                reference: "Ref-Mock",
-                note: "This is a mock invoice.",
-                memo: "Mock Memo",
-                payment_term: {
-                    term_type: "NET_30"
-                }
-            },
-            invoicer: {
-                name: {
-                    given_name: "Mock",
-                    surname: "Merchant"
-                },
-                email_address: "merchant@example.com"
-            },
-            primary_recipients: [
-                {
-                    billing_info: {
-                        name: {
-                            given_name: "John",
-                            surname: "Doe"
-                        },
-                        email_address: "john.doe@example.com"
-                    }
-                }
-            ],
-            items: [
-                {
-                    name: "Mock Item",
-                    quantity: "1",
-                    unit_amount: {
-                        currency_code: "USD",
-                        value: "100.00"
-                    }
-                }
-            ],
+            status: "DRAFT",
+            detail: payload.detail,
+            primary_recipients: payload.primary_recipients,
+            items: payload.items,
             amount: {
-                currency_code: "USD",
+                currency_code: payload.detail.currency_code,
                 value: "100.00"
             }
         };
+        invoices[invoiceId] = createdInvoice;
+        return createdInvoice;
     }
 
-    resource function post invoices/[string invoiceId]/send() returns json {
+    resource function get invoices/[string invoiceId]() returns Invoice|error {
+        Invoice? maybeInvoice = invoices[invoiceId];
+        if maybeInvoice is Invoice {
+            Invoice invoice = maybeInvoice;
+
+            string? currentStatus = invoiceStates[invoiceId];
+            if currentStatus is string {
+                InvoiceStatus? newStatus = <InvoiceStatus?>currentStatus;
+                invoice.status = newStatus;
+            }
+            return invoice;
+        }
+        return error("Invoice not found: " + invoiceId);
+    }
+
+    resource function put invoices/[string invoiceId](Invoice updatedInvoice) returns Invoice|error {
+        if invoices.hasKey(invoiceId) {
+            updatedInvoice.id = invoiceId;
+            invoices[invoiceId] = updatedInvoice;
+            return updatedInvoice;
+        }
+        return error("Invoice not found: " + invoiceId);
+    }
+
+    resource function post invoices/[string invoiceId]/send(Notification payload) returns LinkDescription|http:Response {
         invoiceStates[invoiceId] = "SENT";
+
         time:Utc currentTime = time:utcNow();
         string currentTimestamp = time:utcToString(currentTime);
 
-        return {
-            id: invoiceId,
-            status: "SENT",
-            success: true,
-            detail: {
-                message: "Invoice sent successfully and accepted for future delivery (202)",
-                timestamp: currentTimestamp
-            }
+        LinkDescription linkDescription = {
+            href: "/invoices/" + invoiceId,
+            rel: "send",
+            method: "POST",
+            "title": "Invoice Sent on " + currentTimestamp
         };
+        return linkDescription;
     }
 
-    resource function post invoices/[string invoiceId]/remind() returns http:NoContent|json {
+    resource function post invoices/[string invoiceId]/remind(Notification payload) returns http:NoContent|json {
         if invoiceStates[invoiceId] != "SENT" {
             return {
                 "error": true,
-                message: "Invoice is not in SENT state. Cannot send reminder."
+                "message": "Invoice must be in SENT state to remind."
             };
         }
-
         return http:NO_CONTENT;
     }
 
-    resource function post invoices/[string invoiceId]/cancel() returns http:NoContent|json {
-        if invoiceStates[invoiceId] != "SENT" {
-            return {
-                "error": true,
-                message: "Invoice is not in SENT state. Cannot cancel."
+    resource function post invoices/[string invoiceId]/payments(PaymentDetail payment) returns PaymentReference|error {
+        if invoices.hasKey(invoiceId) {
+            string paymentId = "PAY-MOCK-" + invoiceId;
+            mapPayments[invoiceId] = paymentId;
+
+            PaymentReference paymentRef = {
+                "payment_id": paymentId,
+                "status": "RECEIVED",
+                "amount": payment.amount,
+                "method": payment.method,
+                "note": payment.note
             };
+            return paymentRef;
         }
-        invoiceStates[invoiceId] = "CANCELLED";
-        return http:NO_CONTENT;
+        return error("Invoice not found: " + invoiceId);
     }
 
-    resource function post invoices/[string invoiceId]/payments(@http:Payload json payload) returns json {
-        string transactionId = "TRANSACTION-MOCK-" + invoiceId + "-001";
-        paymentRecords[invoiceId] = transactionId;
+    resource function delete invoices/[string invoiceId]/payments/[string paymentId]() returns http:NoContent|error {
+        if !invoices.hasKey(invoiceId) {
+            return error("Invoice not found: " + invoiceId);
+        }
 
-        return {
-            payment_id: "PAY-MOCK-" + invoiceId + "-001",
-            transaction_id: transactionId,
-            status: "RECORD_SUCCESS",
-            detail: {
-                message: "Payment recorded successfully"
-            }
-        };
+        string? storedPaymentId = mapPayments[invoiceId];
+        if storedPaymentId is string && storedPaymentId == paymentId {
+            _ = mapPayments.remove(invoiceId);
+            return http:NO_CONTENT;
+        }
+        return error("Payment ID not found for this invoice");
     }
 
-    resource function delete invoices/[string invoiceId]/payments/[string paymentId]() returns http:NoContent|json {
-        if paymentRecords[invoiceId] != paymentId {
+    resource function get invoices(int page, int page_size, boolean total_required) returns Invoices|http:Response {
+        if (page < 1) {
             json errorResponse = {
                 "error": true,
-                "message": "Payment ID not found for this invoice"
+                "message": "Invalid page number",
+                "detail": {}
             };
-            return errorResponse;
+            http:Response res = new;
+            res.statusCode = 400;
+            res.setPayload(errorResponse);
+            return res;
         }
 
-        _ = paymentRecords.remove(invoiceId);
-        return http:NO_CONTENT;
+        Invoice[] allInvoices = invoices.entries().map(entry => entry[1]).toArray();
+        int startIndex = (page - 1) * page_size;
+        int endIndex = startIndex + page_size;
+
+        if (startIndex >= allInvoices.length()) {
+            return {
+                "total_items": total_required ? allInvoices.length() : (),
+                items: []
+            };
+        }
+
+        Invoice[] pageItems = allInvoices.slice(startIndex, endIndex.min(allInvoices.length()));
+        return {
+            "total_items": total_required ? allInvoices.length() : (),
+            "items": pageItems
+        };
     }
 
-    resource function delete invoices/[string invoiceId]() returns http:NoContent {
-        return http:NO_CONTENT;
+    resource function post invoices/[string invoiceId]/cancel(Notification payload) returns http:NoContent|json {
+        if invoices.hasKey(invoiceId) {
+            invoiceStates[invoiceId] = "CANCELLED";
+            return http:NO_CONTENT;
+        }
+    }
+
+    resource function delete invoices/[string invoiceId]() returns http:NoContent|json {
+        if invoices.hasKey(invoiceId) {
+            _ = invoices.remove(invoiceId);
+            _ = invoiceStates.remove(invoiceId);
+            return http:NO_CONTENT;
+        }
     }
 }
