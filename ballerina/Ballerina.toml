@@ -9,12 +9,6 @@ keywords = ["PayPal", "Invoicing"]
 icon = "icon.png"
 repository = "https://github.com/ballerina-platform/module-ballerinax-paypal.invoices"
 
-[[dependency]]
-org = "ballerinax"
-name = "paypal.invoices"
-version = "1.0.0"
-repository = "local"
-
 [build-options]
 observabilityIncluded = true
 

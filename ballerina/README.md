@@ -45,7 +45,7 @@ To use the `paypal.invoices` connector in your Ballerina application, update the
 Import the `paypal.invoices` module.
 
 ```ballerina
-import ballerinax/paypal.invoices;
+import ballerinax/paypal.invoices as paypal;
 ```
 
 ### Step 2: Instantiate a new connector
