@@ -14,6 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/lang.runtime;
+import ballerina/log;
 import ballerina/test;
 
 configurable string clientId = "clientId";
@@ -25,14 +27,33 @@ configurable string serviceUrl = isLiveServer ?
     "https://api-m.sandbox.paypal.com/v2/invoicing" :
     "http://localhost:9090";
 
+configurable string tokenUrl = isLiveServer ?
+    "https://api-m.sandbox.paypal.com/v1/oauth2/token" :
+    "http://localhost:9444/oauth2/token";
+
 string invoiceNumber = "";
 string invoiceId = "";
 string testPaymentId = "";
 string testRefundId = "";
 
-ConnectionConfig config = {auth: {clientId, clientSecret}};
+Client paypalClient = test:mock(Client);
 
-final Client paypalClient = check new (config, serviceUrl);
+@test:BeforeSuite
+function initClient() returns error? {
+    if !isLiveServer {
+        check stsListener.attach(sts, "/oauth2");
+        check stsListener.'start();
+        check mockListener.'start();
+
+        runtime:registerListener(stsListener);
+        runtime:registerListener(mockListener);
+        log:printInfo(string `STS started on port: ${HTTP_SERVER_PORT} (HTTP)`);
+        log:printInfo("Mock PayPal service started on port: 9090 (HTTP)");
+    }
+
+    ConnectionConfig config = {auth: {clientId, clientSecret, tokenUrl}};
+    paypalClient = check new (config, serviceUrl);
+}
 
 @test:Config {
     groups: ["live_tests", "mock_tests"]
