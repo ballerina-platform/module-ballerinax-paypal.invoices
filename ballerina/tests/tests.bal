@@ -18,8 +18,8 @@ import ballerina/lang.runtime;
 import ballerina/log;
 import ballerina/test;
 
-configurable string clientId = "clientId";
-configurable string clientSecret = "clientSecret";
+configurable string clientId = "client-test-id";
+configurable string clientSecret = "client-test-secret";
 configurable boolean isLiveServer = false;
 configurable string merchantEmail = "sample@example.com";
 

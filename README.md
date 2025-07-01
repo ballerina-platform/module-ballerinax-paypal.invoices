@@ -24,7 +24,7 @@ To use the PayPal Invoices connector, you must have access to a [PayPal Develope
 
 3. Create a Business account
 
-   > Note: Some PayPal options and features may vary by region or country; check availability before creating an account.
+   > **Note:** Some PayPal options and features may vary by region or country; check availability before creating an account.
 
    ![Create business account](https://raw.githubusercontent.com/ballerina-platform/module-ballerinax-paypal.invoices/main/docs/setup/resources/create-account.png)
 
