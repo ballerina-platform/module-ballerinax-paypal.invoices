@@ -65,6 +65,7 @@ tokenUrl = "<paypal-token-url>"
 ```ballerina
 configurable string clientId = ?;
 configurable string clientSecret = ?;
+configurable string merchantEmail = ?;
 
 configurable string serviceUrl = ?;
 configurable string tokenUrl = ?;
