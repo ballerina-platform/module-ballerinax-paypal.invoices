@@ -5,7 +5,7 @@ name = "paypal.invoices"
 version = "@toml.version@"
 license = ["Apache-2.0"]
 authors = ["Ballerina"]
-keywords = ["PayPal", "Invoicing"]
+keywords = ["Invoicing", "Vendor/Paypal", "Area/Finance", "Type/Connector"]
 icon = "icon.png"
 repository = "https://github.com/ballerina-platform/module-ballerinax-paypal.invoices"
 
