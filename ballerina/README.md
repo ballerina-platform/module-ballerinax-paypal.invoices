@@ -1,8 +1,15 @@
 ## Overview
 
-[PayPal](https://www.paypal.com/) is a global online payment platform enabling individuals and businesses to securely send and receive money, process transactions, and access merchant services across multiple currencies.
+[PayPal](https://www.paypal.com/) is a global online payment platform that enables individuals and businesses to securely send and receive money, process transactions, and access merchant services.
 
-The `ballerinax/paypal.invoices` package provides a Ballerina connector for interacting with the [PayPal Invoicing API v2](https://developer.paypal.com/docs/api/invoicing/v2/), allowing you to create, send, manage, and track invoices in your Ballerina applications.
+The PayPal Invoices connector offers APIs to connect and interact with the [PayPal Invoicing API v2](https://developer.paypal.com/docs/api/invoicing/v2/), enabling the creation, management, and tracking of invoices within applications.
+
+### Key Features
+
+- Create, send, and manage invoices programmatically
+- Support for PayPal Invoicing API v2
+- Track invoice status and handle payments
+- Manage invoicing details including billing info and line items
 
 ## Setup guide
 
