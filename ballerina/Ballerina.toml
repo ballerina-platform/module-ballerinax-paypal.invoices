@@ -2,7 +2,7 @@
 distribution = "2201.12.0"
 org = "ballerinax"
 name = "paypal.invoices"
-version = "1.0.2"
+version = "1.0.3"
 license = ["Apache-2.0"]
 authors = ["Ballerina"]
 keywords = ["Invoicing", "Vendor/PayPal", "Area/Finance & Accounting", "Type/Connector"]
