@@ -57,8 +57,14 @@ allprojects {
 
 def moduleVersion = project.version.replace("-SNAPSHOT", "")
 
-task build {
-    dependsOn(':paypal.invoices-ballerina:build')
+if (!tasks.names.contains('build')) {
+    tasks.register('build') {
+        dependsOn(':paypal.invoices-ballerina:build')
+    }
+} else {
+    tasks.named('build') {
+        dependsOn(':paypal.invoices-ballerina:build')
+    }
 }
 
 release {
